@@ -1927,9 +1927,11 @@ JNIEXPORT void JNICALL NP(setSubtitleDelayMs)(JNIEnv *, jobject, jlong handle, j
 JNIEXPORT void JNICALL NP(applySubtitleStyle)(
     JNIEnv *env, jobject, jlong handle, jstring textColor, jstring /*backgroundColor*/,
     jstring outlineColor, jfloat outlineSize, jboolean bold, jfloat fontSize, jint subPos,
-    jboolean useLibass, jboolean stripSdh) {
+    jboolean useLibass, jboolean stripSdh, jstring fontFamily) {
     Player *p = asPlayer(handle);
     if (!p) return;
+    std::string family = jstringToUtf8(env, fontFamily);
+    mpv_set_property_string(p->mpv, "sub-font", family.empty() ? "sans-serif" : family.c_str());
     // Keep the track's own ASS styling when libass rendering is on, and let the
     // settings below take over when it is off (matching the Windows bridge).
     mpv_set_property_string(p->mpv, "sub-ass-override",

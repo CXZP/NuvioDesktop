@@ -57,6 +57,8 @@ data class SubtitleStyleState(
     val outlineWidth: Int = 2,
     val bold: Boolean = false,
     val fontSizeSp: Int = 18,
+    /** Installed font family for text subtitles; blank means the player default. */
+    val fontFamily: String = "",
     val bottomOffset: Int = 20,
     val stripSdh: Boolean = false,
     val useForcedSubtitles: Boolean = false,

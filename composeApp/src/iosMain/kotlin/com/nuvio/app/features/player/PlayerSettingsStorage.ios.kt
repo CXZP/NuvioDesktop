@@ -43,6 +43,8 @@ actual object PlayerSettingsStorage {
     private const val subtitleOutlineWidthKey = "subtitle_outline_width"
     private const val subtitleBoldKey = "subtitle_bold"
     private const val subtitleFontSizeSpKey = "subtitle_font_size_sp"
+    // Device-local: installed fonts differ per machine, so this is not synced.
+    private const val subtitleFontFamilyKey = "subtitle_font_family"
     private const val subtitleBottomOffsetKey = "subtitle_bottom_offset"
     private const val subtitleStripSdhKey = "subtitle_strip_sdh"
     private const val subtitleUseForcedSubtitlesKey = "subtitle_use_forced_subtitles"
@@ -497,6 +499,19 @@ actual object PlayerSettingsStorage {
 
     actual fun saveSubtitleFontSizeSp(fontSizeSp: Int) {
         NSUserDefaults.standardUserDefaults.setInteger(fontSizeSp.toLong(), forKey = ProfileScopedKey.of(subtitleFontSizeSpKey))
+    }
+
+    actual fun loadSubtitleFontFamily(): String? =
+        NSUserDefaults.standardUserDefaults.stringForKey(ProfileScopedKey.of(subtitleFontFamilyKey))
+
+    actual fun saveSubtitleFontFamily(family: String?) {
+        val key = ProfileScopedKey.of(subtitleFontFamilyKey)
+        val value = family?.takeIf { it.isNotBlank() }
+        if (value == null) {
+            NSUserDefaults.standardUserDefaults.removeObjectForKey(key)
+        } else {
+            NSUserDefaults.standardUserDefaults.setObject(value, forKey = key)
+        }
     }
 
     actual fun loadSubtitleBottomOffset(): Int? {

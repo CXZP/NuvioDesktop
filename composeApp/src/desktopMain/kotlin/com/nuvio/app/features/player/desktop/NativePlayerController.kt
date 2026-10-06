@@ -1096,6 +1096,7 @@ internal class NativePlayerController(
             subPos = style.toMpvSubtitlePosition(),
             useLibass = useLibass,
             stripSdh = style.stripSdh,
+            fontFamily = style.fontFamily,
         )
     }
 

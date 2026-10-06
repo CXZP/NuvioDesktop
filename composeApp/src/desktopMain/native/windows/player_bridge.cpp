@@ -1245,9 +1245,13 @@ public:
         double fontSize,
         int subPos,
         bool useLibass,
-        bool stripSdh
+        bool stripSdh,
+        const std::string &fontFamily
     ) {
         double size = std::max(18.0, std::min(96.0, fontSize));
+        // mpv's own default; without an explicit family, DirectWrite falls back per script
+        // (e.g. Thai -> Leelawadee UI).
+        std::string resolvedFontFamily = fontFamily.empty() ? "sans-serif" : fontFamily;
         int64_t position = std::max(0, std::min(150, subPos));
         double scale = useLibass ? size / 54.0 : 1.0;
         double outline = std::max(0.0, std::min(8.0, outlineSize));
@@ -1266,7 +1270,13 @@ public:
             !hasAppliedSubtitleStyle || appliedSubtitleOutlineColor != resolvedOutlineColor;
         bool outlineSizeChanged = !hasAppliedSubtitleStyle || appliedSubtitleOutlineSize != outline;
         bool stripSdhChanged = !hasAppliedSubtitleStyle || appliedSubtitleStripSdh != stripSdh;
+        bool fontFamilyChanged = !hasAppliedSubtitleStyle || appliedSubtitleFontFamily != resolvedFontFamily;
 
+        if (fontFamilyChanged) {
+            // Applies to text subtitles (SRT/VTT) in both modes; styled ASS keeps its own fonts
+            // under sub-ass-override=scale.
+            setStringProperty("sub-font", resolvedFontFamily);
+        }
         if (modeChanged) {
             setStringProperty("sub-ass-override", useLibass ? "scale" : "force");
         }
@@ -1332,6 +1342,7 @@ public:
         appliedSubtitleFontSize = size;
         appliedSubtitlePosition = position;
         appliedSubtitleStripSdh = stripSdh;
+        appliedSubtitleFontFamily = resolvedFontFamily;
     }
 
 private:
@@ -1368,6 +1379,7 @@ private:
     double appliedSubtitleFontSize = 0.0;
     int64_t appliedSubtitlePosition = 0;
     bool appliedSubtitleStripSdh = false;
+    std::string appliedSubtitleFontFamily;
 
     JavaVM *javaVm = nullptr;
     jobject eventSink = nullptr;
@@ -2927,7 +2939,8 @@ Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_applySubtitleStyle
     jfloat fontSize,
     jint subPos,
     jboolean useLibass,
-    jboolean stripSdh
+    jboolean stripSdh,
+    jstring fontFamily
 ) {
     auto player = playerFromHandle(handle);
     if (!player) return;
@@ -2940,6 +2953,7 @@ Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_applySubtitleStyle
         fontSize,
         subPos,
         useLibass == JNI_TRUE,
-        stripSdh == JNI_TRUE
+        stripSdh == JNI_TRUE,
+        jstringToUtf8(env, fontFamily)
     );
 }

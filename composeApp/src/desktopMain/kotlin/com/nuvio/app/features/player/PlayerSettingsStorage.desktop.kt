@@ -46,6 +46,8 @@ internal actual object PlayerSettingsStorage {
     private const val subtitleOutlineWidthKey = "subtitle_outline_width"
     private const val subtitleBoldKey = "subtitle_bold"
     private const val subtitleFontSizeSpKey = "subtitle_font_size_sp"
+    // Device-local: installed fonts differ per machine, so this is not part of syncKeys.
+    private const val subtitleFontFamilyKey = "subtitle_font_family"
     private const val subtitleBottomOffsetKey = "subtitle_bottom_offset"
     private const val subtitleStripSdhKey = "subtitle_strip_sdh"
     private const val subtitleUseForcedSubtitlesKey = "subtitle_use_forced_subtitles"
@@ -235,6 +237,8 @@ internal actual object PlayerSettingsStorage {
     actual fun saveSubtitleBold(enabled: Boolean) = saveBoolean(subtitleBoldKey, enabled)
     actual fun loadSubtitleFontSizeSp(): Int? = loadInt(subtitleFontSizeSpKey)
     actual fun saveSubtitleFontSizeSp(fontSizeSp: Int) = saveInt(subtitleFontSizeSpKey, fontSizeSp)
+    actual fun loadSubtitleFontFamily(): String? = loadString(subtitleFontFamilyKey)
+    actual fun saveSubtitleFontFamily(family: String?) = saveOptionalString(subtitleFontFamilyKey, family)
     actual fun loadSubtitleBottomOffset(): Int? = loadInt(subtitleBottomOffsetKey)
     actual fun saveSubtitleBottomOffset(bottomOffset: Int) = saveInt(subtitleBottomOffsetKey, bottomOffset)
     actual fun loadSubtitleStripSdh(): Boolean? = loadBoolean(subtitleStripSdhKey)

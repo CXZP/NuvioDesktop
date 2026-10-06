@@ -111,6 +111,7 @@ internal object NativePlayerBridge {
         subPos: Int,
         useLibass: Boolean,
         stripSdh: Boolean,
+        fontFamily: String,
     )
     external fun warmupWebView2(controlsPageUrl: String): Boolean
     external fun shutdownWebView2Warmup()

@@ -164,6 +164,7 @@ static constexpr double kMaxVolumePercent = 200.0;
                                   subPos:(int)subPos
                                useLibass:(BOOL)useLibass
                                 stripSdh:(BOOL)stripSdh;
+- (void)setSubtitleFontFamily:(NSString *)family;
 - (void)handleScriptMessage:(NSDictionary *)message;
 - (void)startMpvEventDrain;
 - (void)applyVolumeSplit:(double)percent;
@@ -2448,6 +2449,11 @@ static void nuvioMpvWakeup(void *ctx) {
     mpv_set_property(_mpv, "sub-delay", MPV_FORMAT_DOUBLE, &delaySeconds);
 }
 
+- (void)setSubtitleFontFamily:(NSString *)family {
+    if (!_mpv) return;
+    [self setStringProperty:"sub-font" value:family.length > 0 ? family : @"sans-serif"];
+}
+
 - (void)applySubtitleStyleWithTextColor:(NSString *)textColor
                         backgroundColor:(NSString *)backgroundColor
                             outlineColor:(NSString *)outlineColor
@@ -3626,14 +3632,17 @@ Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_applySubtitleStyle
     jfloat fontSize,
     jint subPos,
     jboolean useLibass,
-    jboolean stripSdh
+    jboolean stripSdh,
+    jstring fontFamily
 ) {
     if (handle == 0) return;
     std::string text = jstringToString(env, textColor);
     std::string background = jstringToString(env, backgroundColor);
     std::string outline = jstringToString(env, outlineColor);
+    std::string family = jstringToString(env, fontFamily);
     MpvWebPlayer *player = (__bridge MpvWebPlayer *)(void *)(intptr_t)handle;
     runOnMainAsync(^{
+        [player setSubtitleFontFamily:[NSString stringWithUTF8String:family.c_str()]];
         [player applySubtitleStyleWithTextColor:[NSString stringWithUTF8String:text.c_str()]
                                 backgroundColor:[NSString stringWithUTF8String:background.c_str()]
                                     outlineColor:[NSString stringWithUTF8String:outline.c_str()]
