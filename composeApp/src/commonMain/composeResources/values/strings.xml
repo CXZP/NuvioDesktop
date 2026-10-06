@@ -1236,6 +1236,13 @@
     <string name="settings_playback_subtitle_show_preferred_only">Show Only Preferred Languages</string>
     <string name="settings_playback_subtitle_show_preferred_only_description">Only show subtitles matching your preferred subtitle languages.</string>
     <string name="settings_playback_subtitle_size">Subtitle Size</string>
+    <string name="settings_playback_subtitle_font">Subtitle Font</string>
+    <string name="settings_playback_subtitle_font_default">Player default</string>
+    <string name="settings_playback_subtitle_font_default_description">Let the player pick a font for each script.</string>
+    <string name="settings_playback_subtitle_font_search_placeholder">Search installed fonts</string>
+    <string name="settings_playback_subtitle_font_preview">ตัวอย่างซับไตเติล · Subtitle preview 0123</string>
+    <string name="settings_playback_subtitle_font_hint">Applies to text subtitles such as SRT. Styled ASS subtitles keep their own fonts when libass is on.</string>
+    <string name="settings_playback_subtitle_font_no_results">No fonts match.</string>
     <string name="settings_playback_subtitle_strip_sdh">Strip SDH Subtitles</string>
     <string name="settings_playback_subtitle_strip_sdh_description">Hide sound descriptions and speaker labels from text subtitles.</string>
     <string name="settings_playback_subtitle_text_color">Text Color</string>

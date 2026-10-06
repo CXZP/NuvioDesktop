@@ -48,6 +48,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nuvio.app.features.addons.AddonRepository
 import com.nuvio.app.features.addons.enabledAddons
@@ -63,6 +64,8 @@ import com.nuvio.app.features.player.localizedLabel
 import com.nuvio.app.features.player.IosTargetPrimaries
 import com.nuvio.app.features.player.IosTargetTransfer
 import com.nuvio.app.features.player.PlayerSettingsRepository
+import com.nuvio.app.features.player.installedSubtitleFontFamilies
+import com.nuvio.app.features.player.subtitleFontPreviewFamily
 import com.nuvio.app.features.player.STREAM_AUTO_PLAY_TIMEOUT_VALUES
 import com.nuvio.app.features.player.SubtitleBackgroundColorSwatches
 import com.nuvio.app.features.player.SubtitleColorSwatches
@@ -295,6 +298,8 @@ private fun PlaybackSettingsSection(
     var showPreferredSubtitleDialog by remember { mutableStateOf(false) }
     var showSecondarySubtitleDialog by remember { mutableStateOf(false) }
     var showSubtitleTextColorDialog by remember { mutableStateOf(false) }
+    var showSubtitleFontDialog by remember { mutableStateOf(false) }
+    val subtitleFontFamilies = remember { installedSubtitleFontFamilies() }
     var showSubtitleBackgroundColorDialog by remember { mutableStateOf(false) }
     var showSubtitleOutlineColorDialog by remember { mutableStateOf(false) }
     var showExternalPlayerDialog by remember { mutableStateOf(false) }
@@ -595,6 +600,18 @@ private fun PlaybackSettingsSection(
                     },
                 )
                 SettingsGroupDivider(isTablet = isTablet)
+                if (subtitleFontFamilies.isNotEmpty()) {
+                    SettingsNavigationRow(
+                        title = stringResource(Res.string.settings_playback_subtitle_font),
+                        description = subtitleStyle.fontFamily.ifBlank {
+                            stringResource(Res.string.settings_playback_subtitle_font_default)
+                        },
+                        enabled = subtitleRenderingEnabled,
+                        isTablet = isTablet,
+                        onClick = { showSubtitleFontDialog = true },
+                    )
+                    SettingsGroupDivider(isTablet = isTablet)
+                }
                 SettingsSliderRow(
                     title = stringResource(Res.string.settings_playback_subtitle_vertical_offset),
                     value = subtitleStyle.bottomOffset,
@@ -1447,6 +1464,18 @@ private fun PlaybackSettingsSection(
         )
     }
 
+    if (showSubtitleFontDialog) {
+        val subtitleStyle = autoPlayPlayerSettings.subtitleStyle
+        SubtitleFontDialog(
+            fonts = subtitleFontFamilies,
+            selectedFamily = subtitleStyle.fontFamily,
+            onSelect = { family ->
+                PlayerSettingsRepository.setSubtitleStyle(subtitleStyle.copy(fontFamily = family))
+            },
+            onDismiss = { showSubtitleFontDialog = false },
+        )
+    }
+
     if (showSubtitleTextColorDialog) {
         SubtitleColorDialog(
             title = stringResource(Res.string.settings_playback_subtitle_text_color),
@@ -1871,6 +1900,121 @@ private fun LanguageSelectionDialog(
                 )
             }
         }
+
+        DialogButtons {
+            DialogButton(
+                text = stringResource(Res.string.action_done),
+                onClick = onDismiss,
+            )
+        }
+    }
+}
+
+@Composable
+@OptIn(ExperimentalMaterial3Api::class)
+private fun SubtitleFontDialog(
+    fonts: List<String>,
+    selectedFamily: String,
+    onSelect: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var query by remember { mutableStateOf("") }
+    val filteredFonts = remember(fonts, query) {
+        val needle = query.trim()
+        if (needle.isEmpty()) fonts else fonts.filter { it.contains(needle, ignoreCase = true) }
+    }
+    val previewFamily = remember(selectedFamily) { subtitleFontPreviewFamily(selectedFamily) }
+
+    DialogSurface(
+        onDismissRequest = onDismiss,
+        title = stringResource(Res.string.settings_playback_subtitle_font),
+    ) {
+        // Rendered like a subtitle line so the choice can be judged before playback.
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp),
+            color = Color.Black,
+        ) {
+            Text(
+                text = stringResource(Res.string.settings_playback_subtitle_font_preview),
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 18.dp),
+                color = Color.White,
+                fontFamily = previewFamily,
+                fontSize = 20.sp,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
+        ) {
+            BasicTextField(
+                value = query,
+                onValueChange = { query = it },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                singleLine = true,
+                textStyle = MaterialTheme.typography.bodyMedium.copy(
+                    color = MaterialTheme.colorScheme.onSurface,
+                ),
+                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                decorationBox = { innerTextField ->
+                    if (query.isEmpty()) {
+                        Text(
+                            text = stringResource(Res.string.settings_playback_subtitle_font_search_placeholder),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                        )
+                    }
+                    innerTextField()
+                },
+            )
+        }
+
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(max = 360.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            if (query.isBlank()) {
+                item {
+                    DialogOption(
+                        text = stringResource(Res.string.settings_playback_subtitle_font_default),
+                        description = stringResource(Res.string.settings_playback_subtitle_font_default_description),
+                        selected = selectedFamily.isBlank(),
+                        onClick = { onSelect("") },
+                    )
+                }
+            }
+            items(filteredFonts) { family ->
+                DialogOption(
+                    text = family,
+                    selected = family.equals(selectedFamily, ignoreCase = true),
+                    onClick = { onSelect(family) },
+                )
+            }
+            if (filteredFonts.isEmpty() && query.isNotBlank()) {
+                item {
+                    Text(
+                        text = stringResource(Res.string.settings_playback_subtitle_font_no_results),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
+
+        Text(
+            text = stringResource(Res.string.settings_playback_subtitle_font_hint),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
 
         DialogButtons {
             DialogButton(
