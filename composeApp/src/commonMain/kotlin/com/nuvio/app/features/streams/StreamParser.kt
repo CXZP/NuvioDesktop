@@ -1,5 +1,6 @@
 package com.nuvio.app.features.streams
 
+import com.nuvio.app.features.player.normalizeLanguageCode
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -58,9 +59,28 @@ object StreamParser {
                     filename = hintsObj?.string("filename"),
                     proxyHeaders = proxyHeaders,
                 ),
+                externalSubtitles = obj.subtitles(),
             )
         }
     }
+
+    // Stremio stream objects may carry sidecar subtitles: [{ id, url, lang }].
+    private fun JsonObject.subtitles(): List<StreamSubtitle> =
+        (this["subtitles"] as? JsonArray)
+            ?.mapNotNull { element ->
+                val obj = element as? JsonObject ?: return@mapNotNull null
+                val url = obj.string("url")?.trim()?.takeIf(String::isNotBlank) ?: return@mapNotNull null
+                val language = listOf("lang", "language", "languageCode", "locale")
+                    .firstNotNullOfOrNull { obj.string(it)?.trim()?.takeIf(String::isNotBlank) }
+                    ?: "unknown"
+                StreamSubtitle(
+                    url = url,
+                    language = normalizeLanguageCode(language) ?: language,
+                    name = listOf("label", "name", "title")
+                        .firstNotNullOfOrNull { obj.string(it)?.trim()?.takeIf(String::isNotBlank) },
+                )
+            }
+            .orEmpty()
 
     private fun JsonObject.string(name: String): String? =
         this[name]?.jsonPrimitive?.contentOrNull

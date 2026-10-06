@@ -226,6 +226,49 @@ class StreamParserTest {
     }
 
     @Test
+    fun `parse keeps stream sidecar subtitles`() {
+        val streams = StreamParser.parse(
+            payload =
+                """
+                {
+                  "streams": [
+                    {
+                      "url": "https://jellyfin.example/Videos/1/stream?static=true",
+                      "subtitles": [
+                        { "id": "1", "url": "https://jellyfin.example/Videos/1/Subtitles/2/Stream.srt", "lang": "tha" },
+                        { "id": "2", "url": "https://jellyfin.example/Videos/1/Subtitles/3/Stream.srt", "lang": "en", "label": "English SDH" },
+                        { "id": "3", "lang": "en" },
+                        { "id": "4", "url": "  " }
+                      ]
+                    }
+                  ]
+                }
+                """.trimIndent(),
+            addonName = "Addon",
+            addonId = "addon.id",
+        )
+
+        val subtitles = streams.single().externalSubtitles
+        assertEquals(2, subtitles.size)
+        assertEquals("https://jellyfin.example/Videos/1/Subtitles/2/Stream.srt", subtitles[0].url)
+        assertEquals("th", subtitles[0].language)
+        assertEquals(null, subtitles[0].name)
+        assertEquals("en", subtitles[1].language)
+        assertEquals("English SDH", subtitles[1].name)
+    }
+
+    @Test
+    fun `parse leaves externalSubtitles empty when stream has none`() {
+        val streams = StreamParser.parse(
+            payload = """{ "streams": [ { "url": "https://example.com/video.mp4" } ] }""",
+            addonName = "Addon",
+            addonId = "addon.id",
+        )
+
+        assertTrue(streams.single().externalSubtitles.isEmpty())
+    }
+
+    @Test
     fun `parse leaves streamType null when addon omits it`() {
         val streams = StreamParser.parse(
             payload =
