@@ -2169,6 +2169,9 @@ private:
             std::string prefix = "track-list/" + std::to_string(index);
             std::string type = stringProperty((prefix + "/type").c_str(), "");
             if (type != wantedType) continue;
+            // Subtitles added with sub-add are addon subtitles, already listed (and selected)
+            // as such; mpv names them after the URL, which can carry an API key.
+            if (type == "sub" && flagProperty((prefix + "/external").c_str(), false)) continue;
 
             long long trackId = int64Property((prefix + "/id").c_str(), logicalIndex + 1);
             std::string title = trackStringAtIndex(index, "title");

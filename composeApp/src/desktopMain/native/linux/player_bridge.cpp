@@ -786,6 +786,9 @@ std::string buildTracksJson(mpv_handle *mpv, const char *wantedType) {
     for (int64_t i = 0; i < count; i++) {
         std::string pfx = "track-list/" + std::to_string(i);
         if (mpvGetStr(mpv, pfx + "/type") != wantedType) continue;
+        // Subtitles added with sub-add are addon subtitles, already listed as such; mpv names
+        // them after the URL, which can carry an API key.
+        if (isSub && mpvGetStr(mpv, pfx + "/external") == "yes") continue;
         int64_t id = mpvGetInt(mpv, (pfx + "/id").c_str());
         std::string title = mpvGetStr(mpv, pfx + "/title");
         std::string lang = mpvGetStr(mpv, pfx + "/lang");

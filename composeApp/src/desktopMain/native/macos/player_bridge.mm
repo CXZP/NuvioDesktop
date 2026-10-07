@@ -2625,6 +2625,12 @@ static void nuvioMpvWakeup(void *ctx) {
         if (![type isEqualToString:wantedType]) {
             continue;
         }
+        // Subtitles added with sub-add are addon subtitles, already listed as such; mpv names
+        // them after the URL, which can carry an API key.
+        if ([type isEqualToString:@"sub"]
+            && [self flagProperty:[[prefix stringByAppendingString:@"/external"] UTF8String] fallback:NO]) {
+            continue;
+        }
 
         long long trackId = [self int64Property:[[prefix stringByAppendingString:@"/id"] UTF8String] fallback:logicalIndex + 1];
         NSString *title = [self trackStringAtIndex:index field:@"title"];
