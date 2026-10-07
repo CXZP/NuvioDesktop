@@ -46,6 +46,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -66,6 +67,7 @@ import com.nuvio.app.features.player.IosTargetTransfer
 import com.nuvio.app.features.player.PlayerSettingsRepository
 import com.nuvio.app.features.player.installedSubtitleFontFamilies
 import com.nuvio.app.features.player.subtitleFontPreviewFamily
+import com.nuvio.app.features.player.subtitleFontPreviewText
 import com.nuvio.app.features.player.STREAM_AUTO_PLAY_TIMEOUT_VALUES
 import com.nuvio.app.features.player.SubtitleBackgroundColorSwatches
 import com.nuvio.app.features.player.SubtitleColorSwatches
@@ -1469,6 +1471,7 @@ private fun PlaybackSettingsSection(
         SubtitleFontDialog(
             fonts = subtitleFontFamilies,
             selectedFamily = subtitleStyle.fontFamily,
+            preferredSubtitleLanguage = preferredSubtitleLanguage,
             onSelect = { family ->
                 PlayerSettingsRepository.setSubtitleStyle(subtitleStyle.copy(fontFamily = family))
             },
@@ -1915,6 +1918,7 @@ private fun LanguageSelectionDialog(
 private fun SubtitleFontDialog(
     fonts: List<String>,
     selectedFamily: String,
+    preferredSubtitleLanguage: String,
     onSelect: (String) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -1924,6 +1928,9 @@ private fun SubtitleFontDialog(
         if (needle.isEmpty()) fonts else fonts.filter { it.contains(needle, ignoreCase = true) }
     }
     val previewFamily = remember(selectedFamily) { subtitleFontPreviewFamily(selectedFamily) }
+    val previewText = remember(selectedFamily, preferredSubtitleLanguage) {
+        subtitleFontPreviewText(selectedFamily, preferredSubtitleLanguage)
+    }
 
     DialogSurface(
         onDismissRequest = onDismiss,
@@ -1935,15 +1942,26 @@ private fun SubtitleFontDialog(
             shape = RoundedCornerShape(12.dp),
             color = Color.Black,
         ) {
-            Text(
-                text = stringResource(Res.string.settings_playback_subtitle_font_preview),
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 18.dp),
-                color = Color.White,
-                fontFamily = previewFamily,
-                fontSize = 20.sp,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
+            // Native-script line (if the font has one) above English. The fixed minimum height
+            // keeps the dialog steady between one- and two-line previews; a single line centres.
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 84.dp)
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = previewText,
+                    modifier = Modifier.fillMaxWidth(),
+                    color = Color.White,
+                    fontFamily = previewFamily,
+                    fontSize = 20.sp,
+                    textAlign = TextAlign.Center,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
 
         Surface(

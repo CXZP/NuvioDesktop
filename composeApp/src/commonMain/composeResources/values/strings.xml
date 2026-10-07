@@ -1240,7 +1240,6 @@
     <string name="settings_playback_subtitle_font_default">Player default</string>
     <string name="settings_playback_subtitle_font_default_description">Let the player pick a font for each script.</string>
     <string name="settings_playback_subtitle_font_search_placeholder">Search installed fonts</string>
-    <string name="settings_playback_subtitle_font_preview">ตัวอย่างซับไตเติล · Subtitle preview 0123</string>
     <string name="settings_playback_subtitle_font_hint">Applies to text subtitles such as SRT. Styled ASS subtitles keep their own fonts when libass is on.</string>
     <string name="settings_playback_subtitle_font_no_results">No fonts match.</string>
     <string name="settings_playback_subtitle_strip_sdh">Strip SDH Subtitles</string>
