@@ -886,7 +886,12 @@ val buildWindowsPlayerBridge = tasks.register<Exec>("buildWindowsPlayerBridge") 
     outputs.file(windowsPlayerBridgeOutput)
     outputs.file(windowsPlayerBridgeImportLib)
     outputs.file(windowsPlayerBridgePdb)
-    onlyIf { !windowsPlayerBridgeOutput.get().asFile.exists() }
+    // Rebuild when the bridge source changed, not only when the DLL is missing; otherwise edits to
+    // player_bridge.cpp are silently ignored once a DLL exists.
+    onlyIf {
+        val output = windowsPlayerBridgeOutput.get().asFile
+        !output.exists() || windowsPlayerBridgeSource.asFile.lastModified() > output.lastModified()
+    }
     commandLine(windowsPlayerBridgeCommand)
 }
 
