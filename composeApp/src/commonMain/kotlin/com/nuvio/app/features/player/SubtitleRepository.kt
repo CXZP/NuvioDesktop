@@ -30,7 +30,7 @@ object SubtitleRepository {
 
     private var activeFetchJob: Job? = null
 
-    fun fetchAddonSubtitles(type: String, videoId: String) {
+    fun fetchAddonSubtitles(type: String, videoId: String, playingFile: PlayingFileHints? = null) {
         activeFetchJob?.cancel()
         _loadingProgress.value = null
         activeFetchJob = scope.launch {
@@ -38,7 +38,7 @@ object SubtitleRepository {
             _error.value = null
             _addonSubtitles.value = emptyList()
 
-            val requests = addonSubtitleRequests(type, videoId)
+            val requests = addonSubtitleRequests(type, videoId, playingFile)
             if (requests.isEmpty()) {
                 _isLoading.value = false
                 return@launch

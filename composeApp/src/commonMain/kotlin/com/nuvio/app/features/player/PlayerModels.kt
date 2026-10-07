@@ -21,6 +21,7 @@ data class PlayerLaunch(
     val sourceHeaders: Map<String, String> = emptyMap(),
     val sourceResponseHeaders: Map<String, String> = emptyMap(),
     val externalSubtitles: List<com.nuvio.app.features.streams.StreamSubtitle> = emptyList(),
+    val playingFile: PlayingFileHints? = null,
     val streamType: String? = null,
     val logo: String? = null,
     val poster: String? = null,

@@ -30,8 +30,13 @@ data class SubtitleAddonRequest(
     val addonName: String,
 )
 
-internal fun addonSubtitleRequests(type: String, videoId: String): List<SubtitleAddonRequest> {
+internal fun addonSubtitleRequests(
+    type: String,
+    videoId: String,
+    playingFile: PlayingFileHints? = null,
+): List<SubtitleAddonRequest> {
     val requestType = canonicalSubtitleType(type)
+    val extra = playingFile?.toSubtitleExtraPathSegment()
     return AddonRepository.uiState.value.addons.enabledAddons().mapNotNull { addon ->
         val manifest = addon.manifest ?: return@mapNotNull null
         if (manifest.resources.none { resource ->
@@ -39,7 +44,7 @@ internal fun addonSubtitleRequests(type: String, videoId: String): List<Subtitle
                     resource.supportsSubtitleType(requestType, videoId)
             }) return@mapNotNull null
         SubtitleAddonRequest(
-            url = buildAddonResourceUrl(manifest.transportUrl, "subtitles", requestType, videoId),
+            url = buildAddonResourceUrl(manifest.transportUrl, "subtitles", requestType, videoId, extra),
             addonId = manifest.id,
             addonName = addon.displayTitle,
         )
