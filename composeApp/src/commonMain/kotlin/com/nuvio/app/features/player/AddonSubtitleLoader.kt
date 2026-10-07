@@ -77,20 +77,35 @@ private suspend fun parseAddonSubtitles(response: String, request: SubtitleAddon
     return subtitles.mapIndexedNotNull { index, element ->
         val obj = element as? JsonObject ?: return@mapIndexedNotNull null
         val url = obj.stringValue("url") ?: return@mapIndexedNotNull null
-        val language = listOf("lang", "language", "languageCode", "locale", "label")
-            .firstNotNullOfOrNull(obj::stringValue) ?: "unknown"
+        val languageField = listOf("lang", "language", "languageCode", "locale")
+            .firstNotNullOfOrNull(obj::stringValue)
+        val label = obj.stringValue("label")
+        val language = languageField ?: label ?: "unknown"
         AddonSubtitle(
             id = obj.stringValue("id") ?: "${request.addonId}_$index",
             url = url,
             language = normalizeLanguageCode(language) ?: language,
             display = getString(
                 Res.string.player_addon_subtitle_display_format,
-                getLanguageLabelForCode(language),
+                addonSubtitleTitle(
+                    languageLabel = getLanguageLabelForCode(language),
+                    // When there is no language field the label already stood in for it.
+                    trackLabel = label.takeIf { languageField != null },
+                ),
                 request.addonName,
             ),
             addonName = request.addonName,
         )
     }
+}
+
+/**
+ * Language name plus the addon's track label (e.g. "English · SDH"), so several tracks in one
+ * language can be told apart. The label is dropped when it only repeats the language.
+ */
+internal fun addonSubtitleTitle(languageLabel: String, trackLabel: String?): String {
+    val label = trackLabel?.trim()?.takeIf { it.isNotEmpty() && !it.equals(languageLabel, ignoreCase = true) }
+    return if (label == null) languageLabel else "$languageLabel · $label"
 }
 
 private fun canonicalSubtitleType(type: String): String =
