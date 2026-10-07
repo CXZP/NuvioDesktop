@@ -21,6 +21,9 @@ interface PlayerEngineController {
     fun selectAudioTrack(index: Int)
     fun selectSubtitleTrack(index: Int)
     fun setSubtitleUri(url: String)
+
+    /** Like [setSubtitleUri], plus the font files the subtitle needs; players that can't load them ignore them. */
+    fun setSubtitleUri(url: String, fontUrls: List<String>) = setSubtitleUri(url)
     fun clearExternalSubtitle()
     fun clearExternalSubtitleAndSelect(trackIndex: Int)
     fun applySubtitleStyle(style: SubtitleStyleState, useLibass: Boolean = false) {}

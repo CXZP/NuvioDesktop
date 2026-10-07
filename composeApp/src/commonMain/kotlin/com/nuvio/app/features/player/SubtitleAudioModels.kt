@@ -33,6 +33,8 @@ data class AddonSubtitle(
     val display: String,
     val addonName: String? = null,
     val isSelected: Boolean = false,
+    /** Font files the subtitle needs (e.g. the video's attachments for a styled ASS track). */
+    val fontUrls: List<String> = emptyList(),
 )
 
 internal enum class SubtitleTab {

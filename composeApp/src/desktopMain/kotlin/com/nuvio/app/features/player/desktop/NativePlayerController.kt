@@ -26,6 +26,12 @@ import com.nuvio.app.features.player.SubtitleStyleState
 import com.nuvio.app.features.player.SubtitleTrack
 import com.nuvio.app.features.player.inferForcedSubtitleTrack
 import com.nuvio.app.features.player.toStorageHexString
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
@@ -65,6 +71,9 @@ internal class NativePlayerController(
 
         /** Cap on waiting for the previous player's teardown so a hung one cannot block playback. */
         const val TEARDOWN_WAIT_MS = 5_000L
+
+        /** Past this the subtitle loads without its fonts rather than not at all. */
+        const val SUBTITLE_FONTS_TIMEOUT_MS = 30_000L
 
         @Volatile
         var rememberedVolumeLevel: Float = DesktopPlayerVolumeStorage.loadVolumeLevel() ?: 1f
@@ -106,6 +115,9 @@ internal class NativePlayerController(
     private var pendingSubtitleDelayMs: Int? = null
     private var pendingSubtitleStyle: SubtitleStyleState? = null
     private var pendingUseLibass: Boolean = false
+    private val subtitleFontScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private var subtitleFontJob: Job? = null
+    private var subtitleFontRequest = 0
     private var lastSentControlsStructureKey: NativeControlsStructureKey? = null
     private var onAction: (PlayerControlsAction) -> Boolean = { false }
     private var onEvent: (String, Double) -> Boolean = { _, _ -> false }
@@ -1013,6 +1025,7 @@ internal class NativePlayerController(
     }
 
     override fun selectSubtitleTrack(index: Int) {
+        cancelPendingSubtitleFonts()
         val current = handle.takeIf { it != 0L } ?: return
         if (index < 0) {
             log.d { "selectSubtitleTrack off handle=$current" }
@@ -1029,20 +1042,46 @@ internal class NativePlayerController(
         applyPendingSubtitleSettings()
     }
 
-    override fun setSubtitleUri(url: String) {
-        log.d { "setSubtitleUri ${url.toPlaybackLogKey()} handle=$handle" }
-        handle.takeIf { it != 0L }?.let { current ->
-            NativePlayerBridge.clearExternalSubtitles(current)
-            NativePlayerBridge.addSubtitleUrl(current, url)
+    override fun setSubtitleUri(url: String) = setSubtitleUri(url, emptyList())
+
+    override fun setSubtitleUri(url: String, fontUrls: List<String>) {
+        log.d { "setSubtitleUri ${url.toPlaybackLogKey()} fonts=${fontUrls.size} handle=$handle" }
+        cancelPendingSubtitleFonts()
+        val current = handle.takeIf { it != 0L } ?: return
+        NativePlayerBridge.clearExternalSubtitles(current)
+        if (fontUrls.isEmpty()) {
+            NativePlayerBridge.addSubtitleUrl(current, url, "")
+            return
         }
+        // The fonts must be on disk before the track loads, so the subtitle waits for them.
+        val request = subtitleFontRequest
+        subtitleFontJob = subtitleFontScope.launch {
+            val fontsDir = withTimeoutOrNull(SUBTITLE_FONTS_TIMEOUT_MS) {
+                AddonSubtitleFontCache.prepare(fontUrls)
+            }
+            if (fontsDir == null) log.w { "subtitle fonts unavailable, loading without them" }
+            SwingUtilities.invokeLater {
+                if (request != subtitleFontRequest || handle != current) return@invokeLater
+                NativePlayerBridge.addSubtitleUrl(current, url, fontsDir?.toString().orEmpty())
+            }
+        }
+    }
+
+    /** Drops a subtitle still waiting for its fonts, so it cannot replace a newer choice. */
+    private fun cancelPendingSubtitleFonts() {
+        subtitleFontRequest++
+        subtitleFontJob?.cancel()
+        subtitleFontJob = null
     }
 
     override fun clearExternalSubtitle() {
         log.d { "clearExternalSubtitle handle=$handle" }
+        cancelPendingSubtitleFonts()
         handle.takeIf { it != 0L }?.let(NativePlayerBridge::clearExternalSubtitles)
     }
 
     override fun clearExternalSubtitleAndSelect(trackIndex: Int) {
+        cancelPendingSubtitleFonts()
         val current = handle.takeIf { it != 0L } ?: return
         val trackId = if (trackIndex < 0) {
             -1

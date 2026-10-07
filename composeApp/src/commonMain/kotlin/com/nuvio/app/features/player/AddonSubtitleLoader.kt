@@ -14,7 +14,9 @@ import kotlinx.coroutines.supervisorScope
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
@@ -95,9 +97,17 @@ private suspend fun parseAddonSubtitles(response: String, request: SubtitleAddon
                 request.addonName,
             ),
             addonName = request.addonName,
+            fontUrls = obj.fontUrls(),
         )
     }
 }
+
+/** `fonts`: font file URLs sent with ASS subtitles (Jellio++ serves the video's font attachments). */
+internal fun JsonObject.fontUrls(): List<String> =
+    (this["fonts"] as? JsonArray).orEmpty()
+        .mapNotNull { (it as? JsonPrimitive)?.contentOrNull?.trim() }
+        .filter { it.startsWith("https://", ignoreCase = true) || it.startsWith("http://", ignoreCase = true) }
+        .distinct()
 
 /**
  * Language name plus the addon's track label (e.g. "English · SDH"), so several tracks in one

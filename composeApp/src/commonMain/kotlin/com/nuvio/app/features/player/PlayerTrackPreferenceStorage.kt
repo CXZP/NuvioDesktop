@@ -9,6 +9,8 @@ data class PersistedPlayerTrackPreference(
     val addonSubtitleUrl: String? = null,
     val addonSubtitleItemId: String? = null,
     val addonSubtitleAddonName: String? = null,
+    /** Font files of the chosen addon subtitle, so a restore before the addon list loads keeps them. */
+    val addonSubtitleFontUrls: List<String>? = null,
     val audioLanguage: String? = null,
     val audioName: String? = null,
     val audioTrackId: String? = null,

@@ -79,7 +79,8 @@ internal object NativePlayerBridge {
     external fun subtitleTracksJson(handle: Long): String
     external fun selectAudioTrack(handle: Long, trackId: Int)
     external fun selectSubtitleTrack(handle: Long, trackId: Int)
-    external fun addSubtitleUrl(handle: Long, url: String)
+    /** [fontsDir]: folder of fonts for this subtitle (mpv `sub-fonts-dir`); empty for the default. */
+    external fun addSubtitleUrl(handle: Long, url: String, fontsDir: String)
     external fun clearExternalSubtitles(handle: Long)
     external fun clearExternalSubtitlesAndSelect(handle: Long, trackId: Int)
     external fun applyWindowChrome(

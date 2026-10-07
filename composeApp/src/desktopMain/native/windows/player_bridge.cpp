@@ -1212,8 +1212,11 @@ public:
         mpvApi().setProperty(mpv, "sid", MPV_FORMAT_INT64, &id);
     }
 
-    void addSubtitleUrl(const std::string &url) {
+    void addSubtitleUrl(const std::string &url, const std::string &fontsDir) {
         if (url.empty()) return;
+        // libass reads sub-fonts-dir when the track loads, so the fonts an addon sends with an
+        // ASS subtitle must be in place before sub-add; empty restores the default.
+        setStringProperty("sub-fonts-dir", fontsDir);
         // Fetching a remote subtitle (e.g. Jellyfin over Tailscale) can take seconds.
         commandAsync({"sub-add", url, "select"});
     }
@@ -2878,9 +2881,9 @@ Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_selectSubtitleTrac
 }
 
 extern "C" JNIEXPORT void JNICALL
-Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_addSubtitleUrl(JNIEnv *env, jobject, jlong handle, jstring url) {
+Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_addSubtitleUrl(JNIEnv *env, jobject, jlong handle, jstring url, jstring fontsDir) {
     auto player = playerFromHandle(handle);
-    if (player) player->addSubtitleUrl(jstringToUtf8(env, url));
+    if (player) player->addSubtitleUrl(jstringToUtf8(env, url), jstringToUtf8(env, fontsDir));
 }
 
 extern "C" JNIEXPORT void JNICALL

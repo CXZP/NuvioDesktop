@@ -71,6 +71,7 @@ internal fun PlayerScreenRuntime.persistInternalSubtitlePreference(track: Subtit
             addonSubtitleUrl = null,
             addonSubtitleItemId = null,
             addonSubtitleAddonName = null,
+            addonSubtitleFontUrls = null,
         )
     }
 }
@@ -86,6 +87,7 @@ internal fun PlayerScreenRuntime.persistAddonSubtitlePreference(subtitle: AddonS
             addonSubtitleUrl = subtitle.url,
             addonSubtitleItemId = subtitlePreferenceItemId,
             addonSubtitleAddonName = subtitle.addonName,
+            addonSubtitleFontUrls = subtitle.fontUrls,
             subtitleIsForced = null,
         )
     }
@@ -139,7 +141,7 @@ internal fun PlayerScreenRuntime.restorePersistedTrackPreferenceIfNeeded(): Bool
                     selectedAddonSubtitleId = preference.addonSubtitleId ?: persistedUrl
                     selectedSubtitleIndex = -1
                     useCustomSubtitles = true
-                    playerController?.setSubtitleUri(persistedUrl)
+                    playerController?.setSubtitleUri(persistedUrl, preference.addonSubtitleFontUrls.orEmpty())
                     preferredSubtitleSelectionApplied = true
                     isUserExplicitSubtitleSelection = true
                 } else if (belongsToCurrentItem) {
@@ -159,7 +161,7 @@ internal fun PlayerScreenRuntime.restorePersistedTrackPreferenceIfNeeded(): Bool
                         selectedAddonSubtitleId = subtitle.selectionKey
                         selectedSubtitleIndex = -1
                         useCustomSubtitles = true
-                        playerController?.setSubtitleUri(subtitle.url)
+                        playerController?.setSubtitleUri(subtitle.url, subtitle.fontUrls)
                         preferredSubtitleSelectionApplied = true
                         isUserExplicitSubtitleSelection = true
                     } else {
@@ -293,7 +295,7 @@ private fun PlayerScreenRuntime.tryAutoSelectPreferredSubtitleFromAvailableTrack
                 selectedAddonSubtitleId = primaryAddonMatch.selectionKey
                 selectedSubtitleIndex = -1
                 useCustomSubtitles = true
-                playerController?.setSubtitleUri(primaryAddonMatch.url)
+                playerController?.setSubtitleUri(primaryAddonMatch.url, primaryAddonMatch.fontUrls)
                 return
             }
         }
@@ -335,7 +337,7 @@ private fun PlayerScreenRuntime.tryAutoSelectPreferredSubtitleFromAvailableTrack
             selectedAddonSubtitleId = forcedAddonMatch.selectionKey
             selectedSubtitleIndex = -1
             useCustomSubtitles = true
-            playerController?.setSubtitleUri(forcedAddonMatch.url)
+            playerController?.setSubtitleUri(forcedAddonMatch.url, forcedAddonMatch.fontUrls)
         } else {
             disableAutomaticSubtitleSelection()
         }
@@ -373,7 +375,7 @@ private fun PlayerScreenRuntime.tryAutoSelectPreferredSubtitleFromAvailableTrack
         selectedAddonSubtitleId = addonMatch.selectionKey
         selectedSubtitleIndex = -1
         useCustomSubtitles = true
-        playerController?.setSubtitleUri(addonMatch.url)
+        playerController?.setSubtitleUri(addonMatch.url, addonMatch.fontUrls)
     } else if (!preferredSubtitleSelectionApplied) {
         disableAutomaticSubtitleSelection()
         preferredSubtitleSelectionApplied = true

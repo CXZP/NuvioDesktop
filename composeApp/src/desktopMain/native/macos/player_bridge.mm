@@ -151,7 +151,7 @@ static constexpr double kMaxVolumePercent = 200.0;
 - (NSString *)subtitleTracksJson;
 - (void)selectAudioTrackId:(int)trackId;
 - (void)selectSubtitleTrackId:(int)trackId;
-- (void)addSubtitleUrl:(NSString *)url;
+- (void)addSubtitleUrl:(NSString *)url fontsDir:(NSString *)fontsDir;
 - (void)removeExternalSubtitles;
 - (void)removeExternalSubtitlesAndSelect:(int)trackId;
 - (void)setSubtitleDelayMs:(int)delayMs;
@@ -2421,8 +2421,10 @@ static void nuvioMpvWakeup(void *ctx) {
     mpv_set_property(_mpv, "sid", MPV_FORMAT_INT64, &id);
 }
 
-- (void)addSubtitleUrl:(NSString *)url {
+- (void)addSubtitleUrl:(NSString *)url fontsDir:(NSString *)fontsDir {
     if (!_mpv || url.length == 0) return;
+    // libass reads sub-fonts-dir when the track loads; empty restores the default.
+    mpv_set_property_string(_mpv, "sub-fonts-dir", fontsDir.UTF8String);
     [self command:@[@"sub-add", url, @"select"]];
 }
 
@@ -3574,13 +3576,16 @@ Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_addSubtitleUrl(
     JNIEnv *env,
     jobject /* bridge */,
     jlong handle,
-    jstring url
+    jstring url,
+    jstring fontsDir
 ) {
     if (handle == 0) return;
     std::string subtitleUrl = jstringToString(env, url);
+    std::string subtitleFontsDir = jstringToString(env, fontsDir);
     MpvWebPlayer *player = (__bridge MpvWebPlayer *)(void *)(intptr_t)handle;
     runOnMainAsync(^{
-        [player addSubtitleUrl:[NSString stringWithUTF8String:subtitleUrl.c_str()]];
+        [player addSubtitleUrl:[NSString stringWithUTF8String:subtitleUrl.c_str()]
+                      fontsDir:[NSString stringWithUTF8String:subtitleFontsDir.c_str()]];
     });
 }
 

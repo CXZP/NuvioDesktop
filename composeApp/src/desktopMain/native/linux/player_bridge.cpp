@@ -1897,10 +1897,12 @@ JNIEXPORT void JNICALL NP(selectSubtitleTrack)(JNIEnv *, jobject, jlong handle, 
     else mpv_set_property(p->mpv, "sid", MPV_FORMAT_INT64, &id);
 }
 
-JNIEXPORT void JNICALL NP(addSubtitleUrl)(JNIEnv *env, jobject, jlong handle, jstring url) {
+JNIEXPORT void JNICALL NP(addSubtitleUrl)(JNIEnv *env, jobject, jlong handle, jstring url, jstring fontsDir) {
     Player *p = asPlayer(handle);
     if (!p) return;
     std::string sub = jstringToUtf8(env, url);
+    // libass reads sub-fonts-dir when the track loads; empty restores the default.
+    mpv_set_property_string(p->mpv, "sub-fonts-dir", jstringToUtf8(env, fontsDir).c_str());
     const char *cmd[] = {"sub-add", sub.c_str(), "select", nullptr};
     mpv_command(p->mpv, cmd);
 }
