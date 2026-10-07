@@ -31,6 +31,7 @@ import com.nuvio.app.features.player.PlayerSettingsRepository
 import com.nuvio.app.features.player.resolveContentLanguage
 import com.nuvio.app.features.player.sanitizePlaybackHeaders
 import com.nuvio.app.features.player.sanitizePlaybackResponseHeaders
+import com.nuvio.app.features.player.toPlayingFileHints
 import com.nuvio.app.features.streams.StreamBehaviorHints
 import com.nuvio.app.features.streams.StreamItem
 import com.nuvio.app.features.streams.StreamLaunchStore
@@ -462,6 +463,7 @@ internal fun StreamDestination(
             sourceHeaders = sanitizePlaybackHeaders(stream.behaviorHints.proxyHeaders?.request),
             sourceResponseHeaders = sanitizePlaybackResponseHeaders(stream.behaviorHints.proxyHeaders?.response),
             externalSubtitles = stream.externalSubtitles,
+            playingFile = stream.behaviorHints.toPlayingFileHints(),
             streamType = stream.streamType,
             logo = launch.logo,
             poster = launch.poster,
@@ -610,6 +612,7 @@ internal fun StreamDestination(
             sourceHeaders = sanitizePlaybackHeaders(stream.behaviorHints.proxyHeaders?.request),
             sourceResponseHeaders = sanitizePlaybackResponseHeaders(stream.behaviorHints.proxyHeaders?.response),
             externalSubtitles = stream.externalSubtitles,
+            playingFile = stream.behaviorHints.toPlayingFileHints(),
             streamType = stream.streamType,
             logo = launch.logo,
             poster = launch.poster,

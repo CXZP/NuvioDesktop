@@ -99,6 +99,8 @@ internal class PlayerScreenRuntime(
     val initialPositionMs: Long get() = args.initialPositionMs
     val initialProgressFraction: Float? get() = args.initialProgressFraction
     var externalSubtitles by mutableStateOf(args.externalSubtitles)
+    // File identity of the active stream, sent along with subtitle addon requests.
+    var activePlayingFile by mutableStateOf(args.playingFile)
     val isSeries: Boolean get() = parentMetaType == "series"
 
     lateinit var scope: CoroutineScope

@@ -174,6 +174,7 @@ internal fun PlayerScreenRuntime.switchToP2pSourceStream(stream: StreamItem) {
         episode = activeEpisodeNumber,
     )
     externalSubtitles = stream.externalSubtitles
+    activePlayingFile = stream.behaviorHints.toPlayingFileHints()
     activeSourceUrl = p2pSentinelUrl(infoHash, stream.p2pFileIdx)
     activeSourceAudioUrl = null
     activeSourceHeaders = emptyMap()
@@ -219,6 +220,7 @@ internal fun PlayerScreenRuntime.switchToP2pEpisodeStream(
         episode = episode.episode,
     )
     externalSubtitles = stream.externalSubtitles
+    activePlayingFile = stream.behaviorHints.toPlayingFileHints()
     activeSourceUrl = p2pSentinelUrl(infoHash, stream.p2pFileIdx)
     activeSourceAudioUrl = null
     activeSourceHeaders = emptyMap()
@@ -271,6 +273,7 @@ internal fun PlayerScreenRuntime.switchToSource(stream: StreamItem) {
         saveDirectStreamForReuse(stream, url, currentVideoId, activeSeasonNumber, activeEpisodeNumber)
     }
     externalSubtitles = stream.externalSubtitles
+    activePlayingFile = stream.behaviorHints.toPlayingFileHints()
     activeSourceUrl = url
     activeSourceAudioUrl = null
     activeSourceHeaders = sanitizePlaybackHeaders(stream.behaviorHints.proxyHeaders?.request)
@@ -322,6 +325,7 @@ internal fun PlayerScreenRuntime.switchToEpisodeStream(stream: StreamItem, episo
         saveDirectStreamForReuse(stream, url, epVideoId, episode.season, episode.episode)
     }
     externalSubtitles = stream.externalSubtitles
+    activePlayingFile = stream.behaviorHints.toPlayingFileHints()
     activeSourceUrl = url
     activeSourceAudioUrl = null
     activeSourceHeaders = sanitizePlaybackHeaders(stream.behaviorHints.proxyHeaders?.request)
@@ -356,6 +360,7 @@ internal fun PlayerScreenRuntime.switchToDownloadedEpisode(downloadItem: Downloa
     val epResumePositionMs = epEntry?.lastPositionMs?.takeIf { it > 0L } ?: 0L
 
     externalSubtitles = DownloadSubtitles.localSubtitles(localFileUri)
+    activePlayingFile = null
     activeSourceUrl = localFileUri
     activeSourceAudioUrl = null
     activeSourceHeaders = emptyMap()
