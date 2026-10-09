@@ -1,5 +1,7 @@
 package com.nuvio.app.features.details.components
 
+import androidx.compose.foundation.gestures.Orientation
+import com.nuvio.app.core.ui.smoothWheelScroll
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -164,7 +166,7 @@ fun DetailTrailersSection(
             val rowState = rememberLazyListState()
             LazyRow(
                 state = rowState,
-                modifier = Modifier
+                modifier = Modifier.smoothWheelScroll(rowState, Orientation.Horizontal)
                     .nuvioHorizontalScrollBleed(horizontalScrollPadding)
                     .fillMaxWidth()
                     .nuvioDesktopDragScroll(rowState),

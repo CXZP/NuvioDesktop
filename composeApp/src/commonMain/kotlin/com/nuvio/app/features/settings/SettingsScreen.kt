@@ -1,5 +1,6 @@
 package com.nuvio.app.features.settings
 
+import com.nuvio.app.core.ui.smoothWheelScroll
 import com.nuvio.app.AppScreenTab
 import com.nuvio.app.core.build.AppFeaturePolicy
 import com.nuvio.app.isDesktop
@@ -1088,7 +1089,7 @@ private fun TabletSettingsScreen(
                 ) {
                     LazyColumn(
                         state = listState,
-                        modifier = Modifier
+                        modifier = Modifier.smoothWheelScroll(listState)
                             .fillMaxSize()
                             .nestedScroll(rootSearchRevealConnection),
                         contentPadding = PaddingValues(

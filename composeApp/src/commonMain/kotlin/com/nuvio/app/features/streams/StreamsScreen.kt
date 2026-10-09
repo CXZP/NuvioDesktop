@@ -1,5 +1,6 @@
 package com.nuvio.app.features.streams
 
+import com.nuvio.app.core.ui.smoothWheelScroll
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -829,7 +830,7 @@ internal fun StreamList(
     Box(modifier = modifier.fillMaxWidth()) {
         LazyColumn(
             state = listState,
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.smoothWheelScroll(listState).fillMaxSize(),
             contentPadding = PaddingValues(
                 horizontal = 12.dp,
                 vertical = 12.dp,

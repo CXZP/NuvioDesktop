@@ -1,5 +1,7 @@
 package com.nuvio.app.features.details.components
 
+import androidx.compose.foundation.gestures.Orientation
+import com.nuvio.app.core.ui.smoothWheelScroll
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateContentSize
@@ -514,7 +516,7 @@ private fun SeasonTextChipScrollRow(
 
     LazyRow(
         state = seasonListState,
-        modifier = Modifier
+        modifier = Modifier.smoothWheelScroll(seasonListState, Orientation.Horizontal)
             .nuvioHorizontalScrollBleed(horizontalScrollPadding)
             .fillMaxWidth()
             .nuvioDesktopDragScroll(seasonListState)
@@ -591,7 +593,7 @@ private fun SeasonPosterScrollRow(
 
     LazyRow(
         state = seasonListState,
-        modifier = Modifier
+        modifier = Modifier.smoothWheelScroll(seasonListState, Orientation.Horizontal)
             .nuvioHorizontalScrollBleed(horizontalScrollPadding)
             .fillMaxWidth()
             .nuvioDesktopDragScroll(seasonListState)
@@ -744,7 +746,7 @@ private fun EpisodeHorizontalRow(
 
     LazyRow(
         state = listState,
-        modifier = Modifier
+        modifier = Modifier.smoothWheelScroll(listState, Orientation.Horizontal)
             .nuvioHorizontalScrollBleed(horizontalScrollPadding)
             .fillMaxWidth()
             .nuvioDesktopDragScroll(listState),

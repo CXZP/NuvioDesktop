@@ -968,7 +968,7 @@ fun HomeScreen(
             }
         }
 
-        val heroStretchState = rememberHeroStretchState(homeListState)
+        val heroStretchState = rememberHeroStretchState(homeListState, settleWhenIdle = isDesktop)
         val heroStretchModifier = if (showHeroSlot) {
             Modifier.nestedScroll(heroStretchState.nestedScrollConnection)
         } else {

@@ -1,5 +1,6 @@
 package com.nuvio.app.core.ui
 
+import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -114,7 +115,7 @@ fun <T> NuvioShelfSection(
         }
         LazyRow(
             state = state,
-            modifier = rowModifier.nuvioDesktopDragScroll(state),
+            modifier = rowModifier.nuvioDesktopDragScroll(state).smoothWheelScroll(state, Orientation.Horizontal),
             contentPadding = rowContentPadding,
             horizontalArrangement = Arrangement.spacedBy(itemSpacing),
         ) {

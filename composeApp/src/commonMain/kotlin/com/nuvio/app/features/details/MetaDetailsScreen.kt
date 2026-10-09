@@ -1,5 +1,6 @@
 package com.nuvio.app.features.details
 
+import com.nuvio.app.core.ui.smoothWheelScroll
 import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.ExperimentalSharedTransitionApi
@@ -1290,7 +1291,7 @@ fun MetaDetailsScreen(
                         }
                         LazyColumn(
                             state = listState,
-                            modifier = Modifier
+                            modifier = Modifier.smoothWheelScroll(listState)
                                 .fillMaxSize()
                                 .nestedScroll(heroStretchState.nestedScrollConnection)
                                 .zIndex(1f),

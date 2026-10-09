@@ -1,5 +1,7 @@
 package com.nuvio.app.features.settings
 
+import com.nuvio.app.core.ui.smoothWheelScroll
+import androidx.compose.foundation.lazy.rememberLazyListState
 import com.nuvio.app.core.build.AppFeaturePolicy
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
@@ -1887,8 +1889,10 @@ private fun LanguageSelectionDialog(
         onDismissRequest = onDismiss,
         title = title,
     ) {
+        val listState = rememberLazyListState()
         LazyColumn(
-            modifier = Modifier
+            state = listState,
+            modifier = Modifier.smoothWheelScroll(listState)
                 .fillMaxWidth()
                 .heightIn(max = 420.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -1994,8 +1998,10 @@ private fun SubtitleFontDialog(
             )
         }
 
+        val listState = rememberLazyListState()
         LazyColumn(
-            modifier = Modifier
+            state = listState,
+            modifier = Modifier.smoothWheelScroll(listState)
                 .fillMaxWidth()
                 .heightIn(max = 360.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -2480,8 +2486,10 @@ private fun StreamAutoPlayProviderSelectionDialog(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         } else {
+            val listState = rememberLazyListState()
             LazyColumn(
-                modifier = Modifier
+                state = listState,
+                modifier = Modifier.smoothWheelScroll(listState)
                     .fillMaxWidth()
                     .heightIn(max = 340.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),

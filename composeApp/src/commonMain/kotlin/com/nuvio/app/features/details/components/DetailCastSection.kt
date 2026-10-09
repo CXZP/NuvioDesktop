@@ -1,5 +1,7 @@
 package com.nuvio.app.features.details.components
 
+import androidx.compose.foundation.gestures.Orientation
+import com.nuvio.app.core.ui.smoothWheelScroll
 import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
@@ -69,7 +71,7 @@ fun DetailCastSection(
 
             LazyRow(
                 state = rowState,
-                modifier = Modifier
+                modifier = Modifier.smoothWheelScroll(rowState, Orientation.Horizontal)
                     .nuvioHorizontalScrollBleed(horizontalScrollPadding)
                     .fillMaxWidth()
                     .nuvioDesktopDragScroll(rowState),

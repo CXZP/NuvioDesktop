@@ -1,5 +1,6 @@
 package com.nuvio.app.features.catalog
 
+import com.nuvio.app.core.ui.smoothWheelScroll
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -207,7 +208,7 @@ fun CatalogScreen(
             LazyVerticalGrid(
                 columns = gridCells,
                 state = gridState,
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier.smoothWheelScroll(gridState).fillMaxSize(),
                 contentPadding = PaddingValues(
                     start = pageHorizontalPadding,
                     top = with(androidx.compose.ui.platform.LocalDensity.current) { headerHeightPx.toDp() } + 12.dp,

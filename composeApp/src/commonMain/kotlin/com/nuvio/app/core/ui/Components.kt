@@ -95,7 +95,7 @@ fun NuvioScreen(
         backdrop()
         LazyColumn(
             state = listState,
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.smoothWheelScroll(listState).fillMaxSize(),
             contentPadding = PaddingValues(
                 start = horizontalPadding,
                 top = topPadding ?: tokens.spacing.screenTop + statusBarTop + nuvioPlatformExtraTopPadding,

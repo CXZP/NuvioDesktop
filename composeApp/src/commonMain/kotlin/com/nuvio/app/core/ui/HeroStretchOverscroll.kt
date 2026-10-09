@@ -23,12 +23,14 @@ import androidx.compose.ui.unit.dp
 import kotlin.math.roundToInt
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 private val HERO_STRETCH_MAX = 200.dp
 private const val HERO_STRETCH_DRAG_RESISTANCE = 0.55f
 private const val HERO_STRETCH_RELEASE_ABSORB = 0.35f
 private const val HERO_STRETCH_FRAME_TO_VELOCITY = 60f
+private const val HERO_STRETCH_IDLE_SETTLE_MS = 120L
 private val HeroStretchReleaseSpring = spring<Float>(
     dampingRatio = Spring.DampingRatioNoBouncy,
     stiffness = 320f,
@@ -42,10 +44,12 @@ private val HeroStretchBounceSpring = spring<Float>(
 class HeroStretchState internal constructor(
     private val scope: CoroutineScope,
     private val maxStretchPx: Float,
+    private val settleWhenIdle: Boolean,
     private val isAtTop: () -> Boolean,
 ) {
     private val stretchAnim = Animatable(0f)
     private var settleJob: Job? = null
+    private var idleJob: Job? = null
     private var flingAbsorbed = false
 
     val stretchPx: Float get() = stretchAnim.value
@@ -108,6 +112,17 @@ class HeroStretchState internal constructor(
 
     private fun snapTo(value: Float) {
         scope.launch { stretchAnim.snapTo(value.coerceIn(0f, maxStretchPx)) }
+        if (settleWhenIdle) settleAfterIdle()
+    }
+
+    // A mouse wheel never "lets go" the way a finger does, so no fling arrives to spring the
+    // stretch back and it stayed stretched. Spring back once the wheel has been still briefly.
+    private fun settleAfterIdle() {
+        idleJob?.cancel()
+        idleJob = scope.launch {
+            delay(HERO_STRETCH_IDLE_SETTLE_MS)
+            if (stretchAnim.value > 0.5f) settle(0f, HeroStretchReleaseSpring)
+        }
     }
 
     private fun settle(initialVelocity: Float, spec: SpringSpec<Float>) {
@@ -121,12 +136,19 @@ class HeroStretchState internal constructor(
     }
 }
 
+/**
+ * @param settleWhenIdle spring back when scrolling pauses, for mouse wheels, which end without a
+ * fling. Leave off for touch, where a finger held still keeps the stretch.
+ */
 @Composable
-fun rememberHeroStretchState(listState: LazyListState): HeroStretchState {
+fun rememberHeroStretchState(
+    listState: LazyListState,
+    settleWhenIdle: Boolean = false,
+): HeroStretchState {
     val scope = rememberCoroutineScope()
     val maxStretchPx = with(LocalDensity.current) { HERO_STRETCH_MAX.toPx() }
-    return remember(listState, maxStretchPx) {
-        HeroStretchState(scope, maxStretchPx) { !listState.canScrollBackward }
+    return remember(listState, maxStretchPx, settleWhenIdle) {
+        HeroStretchState(scope, maxStretchPx, settleWhenIdle) { !listState.canScrollBackward }
     }
 }
 
