@@ -464,6 +464,8 @@ internal fun TabletFloatingTopBar(
                 if (isFrosted && hazeState != null) {
                     Modifier.hazeEffect(state = hazeState) {
                         blurRadius = 14.dp
+                        // No grain: Haze adds noise by default, which showed over bright hero backdrops.
+                        noiseFactor = 0f
                     }
                 } else {
                     Modifier

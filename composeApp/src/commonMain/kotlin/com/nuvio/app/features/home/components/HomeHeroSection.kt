@@ -1,5 +1,29 @@
 package com.nuvio.app.features.home.components
 
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.drawscope.withTransform
+import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.painter.Painter
+import coil3.compose.AsyncImagePainter
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.foundation.layout.offset
+import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.runtime.SideEffect
+import coil3.compose.LocalPlatformContext
+import coil3.compose.rememberAsyncImagePainter
+import coil3.request.ImageRequest
+import coil3.request.crossfade
+import androidx.compose.runtime.collectAsState
+import androidx.compose.ui.graphics.FilterQuality
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.drawscope.CanvasDrawScope
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.MutatePriority
@@ -41,11 +65,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.BiasAlignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
@@ -60,7 +87,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.nuvio.app.isDesktop
 import com.nuvio.app.core.ui.FullscreenActionButton
-import com.nuvio.app.core.ui.DesktopBackdropVerticalBias
 import com.nuvio.app.core.ui.NuvioDesktopImageScaling
 import com.nuvio.app.core.ui.NuvioAsyncImage as AsyncImage
 import com.nuvio.app.core.ui.NuvioTokens
@@ -69,6 +95,7 @@ import com.nuvio.app.core.format.formatReleaseDateForDisplay
 import com.nuvio.app.core.ui.heroStretchHeight
 import com.nuvio.app.core.ui.ScreenActivityEffect
 import com.nuvio.app.core.ui.heroStretchZoom
+import com.nuvio.app.core.ui.imageBitmapFromArgb
 import com.nuvio.app.core.ui.ultrawideViewportProgress
 import com.nuvio.app.features.home.MetaPreview
 import com.nuvio.app.features.tmdb.originalTmdbImageUrl
@@ -79,12 +106,37 @@ import nuvio.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
 import kotlin.math.abs
 import kotlin.math.roundToInt
+import kotlin.math.ceil
+import kotlin.math.exp
 
 private const val HERO_BACKGROUND_PARALLAX = 0.055f
 private const val HERO_BACKGROUND_SCALE = 1.14f
+private const val HERO_DESKTOP_BACKDROP_ASPECT_RATIO = 16f / 9f
+private const val HERO_DESKTOP_BACKDROP_MIN_WIDTH_FRACTION = 0.64f
+private const val HERO_DESKTOP_SPILL_FRACTION = 0.6f
+// Columns of averaged colour the spread is reduced to: a smooth gradient, not stretched streaks.
+private const val HERO_DESKTOP_SPREAD_GRADIENT_COLUMNS = 8
+// Width the spread is averaged down to before it is smoothed.
+private const val HERO_DESKTOP_SPREAD_SAMPLE_WIDTH = 64
+// Width the shaded, dithered spread is built at; the GPU stretches it the rest of the way.
+private const val HERO_DESKTOP_SPREAD_OUTPUT_WIDTH = 960
+// Share of the sharp picture's width that fades in from the left, and of its height that fades out
+// at the bottom.
+private const val HERO_DESKTOP_PICTURE_LEFT_FADE_FRACTION = 0.22f
+private const val HERO_DESKTOP_PICTURE_BOTTOM_FADE_FRACTION = 0.20f
+private const val HERO_DESKTOP_MASK_BLEED_PX = 4f
+// How strongly the backdrop zooms when the hero is pulled down past the top.
+private const val HERO_DESKTOP_STRETCH_ZOOM = 0.5f
+// Background-coloured shade over the spread, (position, alpha), adapted from Arctic Fuse's
+// combined_flixart.png overlay: darkest towards the left and below the picture.
+private val HERO_DESKTOP_LEFT_SHADE = arrayOf(0.00f to 0.80f, 0.25f to 0.50f, 0.50f to 0f)
+private val HERO_DESKTOP_BOTTOM_SHADE =
+    arrayOf(0.00f to 0f, 0.60f to 0f, 0.70f to 0.45f, 0.80f to 0.85f, 0.92f to 1f)
+// Width of the first, sharp render of the spread before it is reduced into the blur.
+private const val HERO_DESKTOP_SPREAD_RENDER_WIDTH = 1024
+private val HERO_DESKTOP_EDGE_STRIP_WIDTH = 24.dp
 private const val HERO_CONTENT_PARALLAX = 0.18f
 private const val HERO_SCROLL_PARALLAX = 0.3f
-private const val DESKTOP_HERO_SCROLL_PARALLAX = 0.38f
 private const val HERO_SCROLL_DOWN_SCALE_MULTIPLIER = 0.0001f
 private const val HERO_SCROLL_UP_SCALE_MULTIPLIER = 0.002f
 private const val HERO_SCROLL_MAX_SCALE = 1.3f
@@ -175,7 +227,8 @@ fun HomeHeroSection(
             )
             .then(
                 if (isDesktop) {
-                    Modifier.graphicsLayer { clip = true }
+                    // Not clipped: the backdrop's colour spreads below the hero, behind the first rows.
+                    Modifier
                 } else {
                     Modifier.clip(RoundedCornerShape(bottomStart = 28.dp, bottomEnd = 28.dp))
                 },
@@ -258,55 +311,500 @@ private fun HeroBackgroundLayers(
         includePagerNeighbors = includePagerNeighbors,
     )
 
-    val backgroundMotionStrength = if (desktopFrame) layout.backgroundMotionStrength else 1f
+    if (desktopFrame) {
+        val host = LocalHomeHeroBackdropHost.current
+        val backdrop: @Composable () -> Unit = {
+            DesktopHeroBackdrops(
+                items = items,
+                pages = layerPages,
+                pagerState = pagerState,
+                listState = listState,
+                heroWidthPx = heroWidthPx,
+                heroHeightPx = heroHeightPx,
+                heroHeight = layout.heroHeight,
+                stretchPx = stretchPx,
+                modifier = if (host != null) {
+                    // Follows the hero as the list scrolls; placement only, no layer.
+                    Modifier.offset {
+                        IntOffset(0, -heroScrollOffsetPx(listState, heroHeightPx).roundToInt())
+                    }
+                } else {
+                    Modifier
+                },
+            )
+        }
+        if (host == null) {
+            backdrop()
+        } else {
+            // Not cleared on dispose: the list drops the hero item when it scrolls away and may
+            // bring it back without recomposing, which left the backdrop empty. While the hero is
+            // off screen the backdrop is faded out anyway.
+            SideEffect { host.content = backdrop }
+        }
+        return
+    }
     layerPages.forEach { page ->
         val item = items[page % items.size]
-        val imageUrl = item.banner ?: item.poster
-        val backgroundModifier = if (desktopFrame) {
-            Modifier
-                .fillMaxSize()
-                .heroStretchZoom { stretchPx() * backgroundMotionStrength }
-        } else {
-            Modifier
+        AsyncImage(
+            model = item.banner ?: item.poster,
+            contentDescription = item.name,
+            modifier = Modifier
                 .fillMaxWidth()
                 .height(layout.heroHeight)
                 .heroStretchZoom(stretchPx)
-        }
-        AsyncImage(
-            model = if (desktopFrame) originalTmdbImageUrl(imageUrl) else imageUrl,
-            contentDescription = item.name,
-            modifier = backgroundModifier
                 .graphicsLayer {
                     val pageOffset = heroPageOffset(pagerState, page)
                     val scrollOffsetPx = heroScrollOffsetPx(listState, heroHeightPx)
-                    val scrollScale = if (desktopFrame) {
-                        1f + (heroBackgroundScrollScale(scrollOffsetPx) - 1f) * backgroundMotionStrength
-                    } else {
-                        heroBackgroundScrollScale(scrollOffsetPx)
-                    }
+                    val scrollScale = heroBackgroundScrollScale(scrollOffsetPx)
 
                     alpha = heroPageVisibility(pageOffset)
                     translationX = -pageOffset * heroWidthPx * HERO_BACKGROUND_PARALLAX
-                    translationY = if (desktopFrame) {
-                        heroDesktopBackgroundScrollTranslationY(scrollOffsetPx) * backgroundMotionStrength
-                    } else {
-                        heroBackgroundScrollTranslationY(scrollOffsetPx)
-                    }
-                    val baseScale = if (desktopFrame) 1f else HERO_BACKGROUND_SCALE
-                    scaleX = baseScale * scrollScale
-                    scaleY = baseScale * scrollScale
+                    translationY = heroBackgroundScrollTranslationY(scrollOffsetPx)
+                    scaleX = HERO_BACKGROUND_SCALE * scrollScale
+                    scaleY = HERO_BACKGROUND_SCALE * scrollScale
                 },
-            alignment = when {
-                desktopFrame -> BiasAlignment(
-                    horizontalBias = 0f,
-                    verticalBias = DesktopBackdropVerticalBias,
-                )
-                layout.isTablet -> Alignment.TopCenter
-                else -> Alignment.Center
-            },
+            alignment = if (layout.isTablet) Alignment.TopCenter else Alignment.Center,
             contentScale = ContentScale.Crop,
             desktopImageScaling = NuvioDesktopImageScaling.Disabled,
         )
+    }
+}
+
+/**
+ * Draws the desktop hero backdrop behind the whole Home list instead of inside the hero item. The
+ * backdrop reaches below the hero, behind the first rows, and on desktop anything drawn outside
+ * the hero item's layers was cut off in some frames while scrolling.
+ */
+internal class HomeHeroBackdropHost {
+    var content by mutableStateOf<(@Composable () -> Unit)?>(null)
+}
+
+internal val LocalHomeHeroBackdropHost = staticCompositionLocalOf<HomeHeroBackdropHost?> { null }
+
+/**
+ * Desktop hero backdrop, composed like Kodi's Arctic Fuse "flixart" background:
+ * - a soft gradient continuing the colours of the picture's left edge covers the hero and spills
+ *   below it, behind the first rows, so there is no edge anywhere;
+ * - the sharp 16:9 picture sits at the top right, reaching a little past the middle, with soft
+ *   left and bottom edges;
+ * - a background-coloured shade, darkest towards the left and below the picture, keeps the title
+ *   and the rows readable and turns into the plain background where the spill ends.
+ * Stretching a 16:9 backdrop across the much wider desktop hero used to crop away most of the
+ * picture (often the faces), leaving only a band from the top.
+ */
+@Composable
+private fun DesktopHeroBackdrops(
+    items: List<MetaPreview>,
+    pages: List<Int>,
+    pagerState: PagerState,
+    listState: LazyListState?,
+    heroWidthPx: Float,
+    heroHeightPx: Float,
+    heroHeight: Dp,
+    stretchPx: () -> Float,
+    modifier: Modifier = Modifier,
+) {
+    val shadeColor = MaterialTheme.colorScheme.background
+    // Used on the picture only; the spread behind it has the same shade baked in, dithered.
+    val leftShade = Brush.horizontalGradient(colorStops = shadeColorStops(HeroDesktopLeftShadeCurve, shadeColor))
+    BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
+        val backdropWidth = maxOf(
+            heroHeight * HERO_DESKTOP_BACKDROP_ASPECT_RATIO,
+            maxWidth * HERO_DESKTOP_BACKDROP_MIN_WIDTH_FRACTION,
+        ).coerceAtMost(maxWidth)
+        val backdropHeight = backdropWidth / HERO_DESKTOP_BACKDROP_ASPECT_RATIO
+        // Height of the whole composition: the hero plus the part that reaches behind the first rows.
+        val spreadHeight = maxOf(backdropHeight, heroHeight) + heroHeight * HERO_DESKTOP_SPILL_FRACTION
+        val density = LocalDensity.current
+        val backdropWidthPx = with(density) { backdropWidth.toPx() }
+        val backdropHeightPx = with(density) { backdropHeight.toPx() }
+        val edgeStripPx = with(density) { HERO_DESKTOP_EDGE_STRIP_WIDTH.toPx() }
+        val spreadSizePx = with(density) { Size(maxWidth.toPx(), spreadHeight.toPx()) }
+        // Destination-in masks for the sharp picture: it fades in from the left (Arctic Fuse's
+        // flixart.png fades over about a quarter of the width) and fades out over a short band at
+        // its own bottom, so the whole picture stays visible.
+        val leftEdgeMask = Brush.horizontalGradient(
+            colorStops = smoothFadeStops(fadeEnd = 1f, fromAlpha = 0f, toAlpha = 1f),
+            startX = 0f,
+            endX = backdropWidthPx * HERO_DESKTOP_PICTURE_LEFT_FADE_FRACTION,
+        )
+        val bottomEdgeMask = Brush.verticalGradient(
+            colorStops = smoothFadeStops(fadeEnd = 1f, fromAlpha = 1f, toAlpha = 0f),
+            startY = backdropHeightPx * (1f - HERO_DESKTOP_PICTURE_BOTTOM_FADE_FRACTION),
+            endY = backdropHeightPx,
+        )
+
+        pages.forEach { page ->
+            key(page) {
+                val item = items[page % items.size]
+                val imageUrl = originalTmdbImageUrl(item.banner ?: item.poster)
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(spreadHeight)
+                        // Scrolls with the page and fades as the hero leaves, like Arctic Fuse; no
+                        // scroll parallax. Pulling down past the top zooms in from the picture's
+                        // corner, so the picture follows the stretch.
+                        .graphicsLayer {
+                            val pageOffset = heroPageOffset(pagerState, page)
+                            val scrollOffsetPx = heroScrollOffsetPx(listState, heroHeightPx)
+                            val scrollFade =
+                                1f - (scrollOffsetPx / heroHeightPx.coerceAtLeast(1f)).coerceIn(0f, 1f)
+                            alpha = heroPageVisibility(pageOffset) * scrollFade
+                            val stretchZoom = 1f + stretchPx().coerceAtLeast(0f) *
+                                HERO_DESKTOP_STRETCH_ZOOM / heroHeightPx.coerceAtLeast(1f)
+                            transformOrigin = TransformOrigin(1f, 0f)
+                            scaleX = stretchZoom
+                            scaleY = stretchZoom
+                            translationX = -pageOffset * heroWidthPx * HERO_BACKGROUND_PARALLAX
+                        },
+                ) {
+                    // One load feeds both layers. No crossfade: the picture and its spread show up
+                    // together in the frame the load finishes.
+                    val platformContext = LocalPlatformContext.current
+                    val request = remember(imageUrl, backdropWidthPx, backdropHeightPx) {
+                        ImageRequest.Builder(platformContext)
+                            .data(imageUrl)
+                            .size(backdropWidthPx.roundToInt(), backdropHeightPx.roundToInt())
+                            .crossfade(false)
+                            .build()
+                    }
+                    val picture = rememberAsyncImagePainter(model = request)
+                    val pictureState by picture.state.collectAsState()
+                    val loadedResult = pictureState as? AsyncImagePainter.State.Success
+                    val loadedPicture = loadedResult?.painter
+                    // Blurred once per picture into a small bitmap. A blur effect on the full-size
+                    // layer was redone every frame while the hero moved or faded, and fell behind.
+                    // Kept across compositions: the hero is dropped when scrolled out of view, and
+                    // rebuilding the spread as it came back made the scroll stutter.
+                    // Keyed by the image actually loaded, not the page's current URL: while a page
+                    // switches items, the painter can still hold the previous picture, and its
+                    // spread was cached under the new item (a red poster tinted another title).
+                    val spreadKey = HeroSpreadKey(
+                        loadedResult?.result?.request?.data?.toString(),
+                        spreadSizePx,
+                        backdropWidthPx,
+                        shadeColor,
+                    )
+                    val spread = remember(loadedPicture, spreadKey) {
+                        loadedPicture?.let {
+                            HeroSpreadCache.get(spreadKey) ?: renderBlurredSpread(
+                                painter = it,
+                                spreadSize = spreadSizePx,
+                                pictureWidth = backdropWidthPx,
+                                pictureHeight = backdropHeightPx,
+                                strip = edgeStripPx,
+                                gradientColumns = HERO_DESKTOP_SPREAD_GRADIENT_COLUMNS,
+                                shadeColor = shadeColor,
+                                density = density,
+                            ).also { bitmap -> HeroSpreadCache.put(spreadKey, bitmap) }
+                        }
+                    }
+                    Canvas(modifier = Modifier.fillMaxSize()) {
+                        spread?.let {
+                            drawImage(
+                                image = it,
+                                dstSize = IntSize(size.width.roundToInt(), size.height.roundToInt()),
+                                // Plain bilinear: a sharpening filter would bring the dither grain out.
+                                filterQuality = FilterQuality.Low,
+                            )
+                        }
+                    }
+                    Image(
+                        painter = loadedPicture ?: picture,
+                        contentDescription = item.name,
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .width(backdropWidth)
+                            .height(backdropHeight)
+                            .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+                            .drawWithContent {
+                                drawContent()
+                                // Masks reach past the edges: when the hero is zoomed, the edge falls
+                                // between pixels, and a mask ending exactly there left the unmasked
+                                // edge column showing as a bright line.
+                                val bleed = HERO_DESKTOP_MASK_BLEED_PX
+                                val maskTopLeft = Offset(-bleed, -bleed)
+                                val maskSize = Size(size.width + bleed * 2, size.height + bleed * 2)
+                                drawRect(leftEdgeMask, maskTopLeft, maskSize, blendMode = BlendMode.DstIn)
+                                drawRect(bottomEdgeMask, maskTopLeft, maskSize, blendMode = BlendMode.DstIn)
+                                // The left shade, laid out over the whole spread, kept to the picture's
+                                // own pixels (SrcAtop) so the spread is not shaded twice. The bottom
+                                // shade starts below the picture, so it is left off here.
+                                translate(left = size.width - spreadSizePx.width) {
+                                    drawRect(brush = leftShade, size = spreadSizePx, blendMode = BlendMode.SrcAtop)
+                                }
+                            },
+                        alignment = Alignment.Center,
+                        contentScale = ContentScale.Crop,
+                    )
+                }
+            }
+        }
+    }
+}
+
+private data class HeroSpreadKey(
+    val imageUrl: String?,
+    val spreadSize: Size,
+    val pictureWidth: Float,
+    val shadeColor: Color,
+)
+
+/** The most recently used spreads (about 2.5 MB each), so a returning hero shows at once. */
+private object HeroSpreadCache {
+    private const val MAX_ENTRIES = 8
+    private val entries = LinkedHashMap<HeroSpreadKey, ImageBitmap>()
+
+    fun get(key: HeroSpreadKey): ImageBitmap? =
+        entries.remove(key)?.also { entries[key] = it }
+
+    fun put(key: HeroSpreadKey, bitmap: ImageBitmap) {
+        entries.remove(key)
+        entries[key] = bitmap
+        while (entries.size > MAX_ENTRIES) entries.remove(entries.keys.first())
+    }
+}
+
+/**
+ * Renders [drawEdgeSpread] into a small bitmap, averages it down and blurs it to about
+ * [gradientColumns] bands of colour across, then shades it; drawn back at full size, the averaged
+ * colours become one soft gradient, like Arctic Fuse's background.
+ */
+private fun renderBlurredSpread(
+    painter: Painter,
+    spreadSize: Size,
+    pictureWidth: Float,
+    pictureHeight: Float,
+    strip: Float,
+    gradientColumns: Int,
+    shadeColor: Color,
+    density: Density,
+): ImageBitmap {
+    val scale = HERO_DESKTOP_SPREAD_RENDER_WIDTH / spreadSize.width
+    var bitmap = drawIntoBitmap(
+        width = HERO_DESKTOP_SPREAD_RENDER_WIDTH,
+        height = (spreadSize.height * scale).roundToInt(),
+        density = density,
+    ) {
+        drawEdgeSpread(painter, pictureWidth * scale, pictureHeight * scale, strip * scale)
+    }
+    while (bitmap.width / 2 >= HERO_DESKTOP_SPREAD_SAMPLE_WIDTH) {
+        val source = bitmap
+        // Exact halving with bilinear sampling averages each 2x2 block.
+        bitmap = drawIntoBitmap(source.width / 2, source.height / 2, density) {
+            drawImage(image = source, dstSize = IntSize(source.width / 2, source.height / 2))
+        }
+    }
+    // Smoothed at this size rather than reduced further: a handful of pixels stretched across the
+    // screen showed as large blocks.
+    val planes = bitmap.gaussianBlurredPlanes(sigma = bitmap.width / (gradientColumns * 1.5f))
+    return composeShadedSpread(planes, bitmap.width, bitmap.height, spreadSize, shadeColor)
+}
+
+/**
+ * Scales the blurred planes up to [HERO_DESKTOP_SPREAD_OUTPUT_WIDTH], applies the shades and
+ * dithers before rounding to 8 bits. Smooth dark gradients rounded directly showed visible bands;
+ * the GPU only stretches this result a few times further.
+ */
+private fun composeShadedSpread(
+    planes: Array<FloatArray>,
+    width: Int,
+    height: Int,
+    spreadSize: Size,
+    shadeColor: Color,
+): ImageBitmap {
+    val outWidth = HERO_DESKTOP_SPREAD_OUTPUT_WIDTH
+    val outHeight = (outWidth * spreadSize.height / spreadSize.width).roundToInt().coerceAtLeast(1)
+    val shade = floatArrayOf(shadeColor.red * 255f, shadeColor.green * 255f, shadeColor.blue * 255f)
+    val leftAlpha = FloatArray(outWidth) { x -> HeroDesktopLeftShadeCurve.at((x + 0.5f) / outWidth) }
+    val pixels = IntArray(outWidth * outHeight)
+    for (y in 0 until outHeight) {
+        val bottomAlpha = HeroDesktopBottomShadeCurve.at((y + 0.5f) / outHeight)
+        val sy = ((y + 0.5f) * height / outHeight - 0.5f).coerceIn(0f, (height - 1).toFloat())
+        val y0 = sy.toInt()
+        val y1 = minOf(y0 + 1, height - 1)
+        val fy = sy - y0
+        for (x in 0 until outWidth) {
+            val sx = ((x + 0.5f) * width / outWidth - 0.5f).coerceIn(0f, (width - 1).toFloat())
+            val x0 = sx.toInt()
+            val x1 = minOf(x0 + 1, width - 1)
+            val fx = sx - x0
+            var argb = 0xFF shl 24
+            for (channel in 0 until 3) {
+                val plane = planes[channel]
+                val top = plane[y0 * width + x0] * (1f - fx) + plane[y0 * width + x1] * fx
+                val bottom = plane[y1 * width + x0] * (1f - fx) + plane[y1 * width + x1] * fx
+                var value = top * (1f - fy) + bottom * fy
+                value += (shade[channel] - value) * leftAlpha[x]
+                value += (shade[channel] - value) * bottomAlpha
+                // Triangular noise of up to one step, so the rounding error is spread out as grain.
+                value += ditherNoise(x, y, channel) + ditherNoise(x, y, channel + 3) - 1f
+                argb = argb or ((value + 0.5f).toInt().coerceIn(0, 255) shl (16 - channel * 8))
+            }
+            pixels[y * outWidth + x] = argb
+        }
+    }
+    return imageBitmapFromArgb(pixels, outWidth, outHeight)
+}
+
+/** A repeatable value in [0, 1) for each pixel and channel. */
+private fun ditherNoise(x: Int, y: Int, salt: Int): Float {
+    var hash = x * 374761393 + y * 668265263 + salt * 1274126177
+    hash = (hash xor (hash ushr 13)) * 1103515245
+    hash = hash xor (hash ushr 16)
+    return (hash and 0xFFFF) / 65536f
+}
+
+/**
+ * Black stops easing from [fromAlpha] to [toAlpha] between 0 and [fadeEnd] (smoothstep). A fade
+ * that starts or stops at an angle shows a line there; this one starts and ends flat.
+ */
+private fun smoothFadeStops(fadeEnd: Float, fromAlpha: Float, toAlpha: Float): Array<Pair<Float, Color>> {
+    val steps = 16
+    return Array(steps + 1) { i ->
+        val t = i / steps.toFloat()
+        val eased = t * t * (3f - 2f * t)
+        fadeEnd * t to Color.Black.copy(alpha = fromAlpha + (toAlpha - fromAlpha) * eased)
+    }
+}
+
+/**
+ * A shade profile sampled evenly with its corners rounded off. Where the slope of a fade changes
+ * sharply, the eye sees a light or dark line, so the straight segments between stops are smoothed.
+ */
+private class ShadeCurve(stops: Array<Pair<Float, Float>>) {
+    val samples: FloatArray
+
+    init {
+        val count = 65
+        val raw = FloatArray(count) { i -> shadeAlphaAt(stops, i / (count - 1f)) }
+        val sigma = count * 0.06f
+        val radius = ceil(sigma * 3f).toInt()
+        samples = FloatArray(count) { i ->
+            var sum = 0f
+            var weights = 0f
+            for (offset in -radius..radius) {
+                val weight = exp(-(offset * offset) / (2f * sigma * sigma))
+                sum += raw[(i + offset).coerceIn(0, count - 1)] * weight
+                weights += weight
+            }
+            sum / weights
+        }
+    }
+
+    fun at(position: Float): Float {
+        val scaled = position.coerceIn(0f, 1f) * (samples.size - 1)
+        val index = scaled.toInt().coerceAtMost(samples.size - 2)
+        val fraction = scaled - index
+        return samples[index] + (samples[index + 1] - samples[index]) * fraction
+    }
+}
+
+private val HeroDesktopLeftShadeCurve = ShadeCurve(HERO_DESKTOP_LEFT_SHADE)
+private val HeroDesktopBottomShadeCurve = ShadeCurve(HERO_DESKTOP_BOTTOM_SHADE)
+
+private fun shadeColorStops(curve: ShadeCurve, color: Color): Array<Pair<Float, Color>> =
+    Array(curve.samples.size) { i -> i / (curve.samples.size - 1f) to color.copy(alpha = curve.samples[i]) }
+
+private fun shadeAlphaAt(stops: Array<Pair<Float, Float>>, position: Float): Float {
+    if (position <= stops.first().first) return stops.first().second
+    for (i in 1 until stops.size) {
+        val (end, endAlpha) = stops[i]
+        if (position <= end) {
+            val (start, startAlpha) = stops[i - 1]
+            return startAlpha + (endAlpha - startAlpha) * (position - start) / (end - start)
+        }
+    }
+    return stops.last().second
+}
+
+private fun ImageBitmap.gaussianBlurredPlanes(sigma: Float): Array<FloatArray> {
+    val w = width
+    val h = height
+    val pixels = IntArray(w * h)
+    readPixels(pixels)
+    val radius = ceil(sigma * 3f).toInt()
+    val kernel = FloatArray(radius * 2 + 1) { i ->
+        val x = (i - radius).toFloat()
+        exp(-x * x / (2f * sigma * sigma))
+    }
+    val kernelSum = kernel.sum()
+    for (i in kernel.indices) kernel[i] /= kernelSum
+
+    // Red, green and blue planes; the spread is opaque everywhere.
+    var planes = Array(3) { channel ->
+        val shift = 16 - channel * 8
+        FloatArray(w * h) { i -> ((pixels[i] ushr shift) and 0xFF).toFloat() }
+    }
+    fun pass(horizontal: Boolean) {
+        planes = Array(3) { channel ->
+            val source = planes[channel]
+            FloatArray(w * h) { i ->
+                val x = i % w
+                val y = i / w
+                var value = 0f
+                for (k in kernel.indices) {
+                    val offset = k - radius
+                    val sx = if (horizontal) (x + offset).coerceIn(0, w - 1) else x
+                    val sy = if (horizontal) y else (y + offset).coerceIn(0, h - 1)
+                    value += source[sy * w + sx] * kernel[k]
+                }
+                value
+            }
+        }
+    }
+    pass(horizontal = true)
+    pass(horizontal = false)
+    return planes
+}
+
+private fun drawIntoBitmap(
+    width: Int,
+    height: Int,
+    density: Density,
+    block: DrawScope.() -> Unit,
+): ImageBitmap {
+    val bitmap = ImageBitmap(width.coerceAtLeast(1), height.coerceAtLeast(1))
+    CanvasDrawScope().draw(
+        density = density,
+        layoutDirection = LayoutDirection.Ltr,
+        canvas = androidx.compose.ui.graphics.Canvas(bitmap),
+        size = Size(bitmap.width.toFloat(), bitmap.height.toFloat()),
+        block = block,
+    )
+    return bitmap
+}
+
+/**
+ * Stretches the picture's leftmost columns across the whole width, and the colour of its
+ * bottom-left corner down below it, like Arctic Fuse's background: each row continues the colour
+ * the picture has at its left edge. The rest of the picture is left out, so dark details near its
+ * bottom (hair, clothes) no longer show up as blots once blurred.
+ */
+private fun DrawScope.drawEdgeSpread(
+    painter: Painter,
+    pictureWidth: Float,
+    pictureHeight: Float,
+    strip: Float,
+) {
+    val left = size.width - pictureWidth
+    fun drawPicture() = translate(left = left) {
+        with(painter) { draw(Size(pictureWidth, pictureHeight)) }
+    }
+
+    withTransform({
+        scale(scaleX = size.width / strip, scaleY = 1f, pivot = Offset.Zero)
+        translate(left = -left)
+        clipRect(left, 0f, left + strip, pictureHeight)
+    }) { drawPicture() }
+    if (size.height > pictureHeight) {
+        withTransform({
+            translate(top = pictureHeight)
+            scale(scaleX = size.width / strip, scaleY = (size.height - pictureHeight) / strip, pivot = Offset.Zero)
+            translate(left = -left, top = -(pictureHeight - strip))
+            clipRect(left, pictureHeight - strip, left + strip, pictureHeight)
+        }) { drawPicture() }
     }
 }
 
@@ -543,11 +1041,9 @@ private fun DesktopHomeHeroFrame(
     val space = NuvioTokens.Space
     val backgroundColor = colorScheme.background
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(backgroundColor),
-    ) {
+    // No background of its own: the backdrop is drawn behind the Home list (HomeHeroBackdropHost),
+    // on the screen's background.
+    Box(modifier = Modifier.fillMaxSize()) {
         HeroBackgroundLayers(
             items = items,
             pagerState = pagerState,
@@ -566,47 +1062,19 @@ private fun DesktopHomeHeroFrame(
                 .height(layout.topFadeHeight)
                 .align(Alignment.TopCenter)
                 .background(
+                    // Eased out to zero: a straight fade ending abruptly over the bright backdrop
+                    // showed as a light line where it stopped.
                     Brush.verticalGradient(
-                        colors = listOf(
-                            backgroundColor.copy(alpha = opacity.overlayHeavy),
-                            Color.Transparent,
-                        ),
+                        colorStops = Array(9) { i ->
+                            val t = i / 8f
+                            t to backgroundColor.copy(alpha = opacity.overlayHeavy * (1f - t) * (1f - t))
+                        },
                     ),
                 ),
         )
 
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.horizontalGradient(
-                        colorStops = arrayOf(
-                            0.00f to backgroundColor.copy(alpha = 0.96f),
-                            0.08f to backgroundColor.copy(alpha = 0.90f),
-                            0.16f to backgroundColor.copy(alpha = 0.76f),
-                            0.26f to backgroundColor.copy(alpha = 0.54f),
-                            0.36f to backgroundColor.copy(alpha = 0.30f),
-                            0.46f to backgroundColor.copy(alpha = 0.12f),
-                            0.54f to Color.Transparent,
-                        ),
-                    ),
-                ),
-        )
-
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(layout.bottomFadeHeight)
-                .align(Alignment.BottomCenter)
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(
-                            backgroundColor.copy(alpha = 0f),
-                            backgroundColor,
-                        ),
-                    ),
-                ),
-        )
+        // The text scrim and the bottom fade are drawn with the backdrop spread (DesktopHeroBackdrops),
+        // which reaches below the hero, so they end where the spread ends instead of at the hero edge.
 
         Box(
             modifier = Modifier
@@ -661,7 +1129,12 @@ private fun DesktopHomeHeroFrame(
                     .padding(
                         end = contentHorizontalPadding,
                         bottom = space.s40,
-                    ),
+                    )
+                    // A dark capsule like the navigation bar's, so the white dots stay visible
+                    // over a bright picture.
+                    .clip(RoundedCornerShape(percent = 50))
+                    .background(Color(0xFF1C1C1E).copy(alpha = 0.55f))
+                    .padding(horizontal = space.s12, vertical = space.s8),
             )
         }
     }
@@ -961,8 +1434,8 @@ private fun DesktopHeroContentBlock(
             Text(
                 text = description,
                 style = MaterialTheme.typography.bodyLarge.copy(
-                    fontSize = NuvioTokens.Type.bodyLg,
-                    lineHeight = NuvioTokens.LineHeight.bodyLg,
+                    fontSize = NuvioTokens.Type.titleMd,
+                    lineHeight = NuvioTokens.LineHeight.headline,
                     letterSpacing = NuvioTokens.LetterSpacing.none,
                 ),
                 color = colorScheme.onSurface,
@@ -1011,9 +1484,9 @@ private fun desktopHeroLogoWidthFraction(layout: HomeHeroLayout): Float =
 
 private fun desktopHeroLogoSlotHeight(layout: HomeHeroLayout): Dp =
     when {
-        layout.contentMaxWidth >= 640.dp -> 120.dp
-        layout.contentMaxWidth >= 520.dp -> 112.dp
-        else -> 104.dp
+        layout.contentMaxWidth >= 640.dp -> 180.dp
+        layout.contentMaxWidth >= 520.dp -> 168.dp
+        else -> 156.dp
     }
 
 private fun desktopHeroGenreText(item: MetaPreview): String =
@@ -1057,7 +1530,8 @@ internal fun homeHeroLayout(
             heroHeight = heroHeight,
             contentMaxWidth = 760.dp,
             contentContainerMaxWidth = maxWidthDp.dp,
-            contentWidthFraction = 0.58f,
+            // Text ends about where the centred navigation bar begins.
+            contentWidthFraction = 0.45f,
             contentHorizontalPadding = lerp(
                 start = standardHorizontalPadding,
                 stop = DESKTOP_HERO_ULTRAWIDE_HORIZONTAL_PADDING_DP,
@@ -1215,10 +1689,6 @@ private fun heroBackgroundScrollScale(scrollOffsetPx: Float): Float {
 
 private fun heroBackgroundScrollTranslationY(scrollOffsetPx: Float): Float {
     return scrollOffsetPx * HERO_SCROLL_PARALLAX
-}
-
-private fun heroDesktopBackgroundScrollTranslationY(scrollOffsetPx: Float): Float {
-    return scrollOffsetPx * DESKTOP_HERO_SCROLL_PARALLAX
 }
 
 private fun Modifier.homeHeroPagerGesture(

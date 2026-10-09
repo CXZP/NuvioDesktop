@@ -97,7 +97,10 @@ internal fun DesktopNavigationBar(
                     .clip(RoundedCornerShape(50))
                     .then(
                         if (isFrosted && hazeState != null) {
-                            Modifier.hazeEffect(state = hazeState) { blurRadius = 14.dp }
+                            Modifier.hazeEffect(state = hazeState) {
+                                blurRadius = 14.dp
+                                noiseFactor = 0f
+                            }
                         } else {
                             Modifier
                         },

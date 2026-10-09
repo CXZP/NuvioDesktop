@@ -13,6 +13,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.snapshotFlow
@@ -55,6 +56,8 @@ import com.nuvio.app.features.home.components.HomeContinueWatchingSection
 import com.nuvio.app.features.home.components.HomeEmptyStateCard
 import com.nuvio.app.features.home.components.HomeHeroReservedSpace
 import com.nuvio.app.features.home.components.HomeHeroSection
+import com.nuvio.app.features.home.components.HomeHeroBackdropHost
+import com.nuvio.app.features.home.components.LocalHomeHeroBackdropHost
 import com.nuvio.app.features.home.components.HomeSkeletonHero
 import com.nuvio.app.features.home.components.HomeSkeletonRow
 import com.nuvio.app.features.home.components.ContinueWatchingLayout
@@ -978,11 +981,18 @@ fun HomeScreen(
             topChromePadding
         }
 
+        val heroBackdropHost = remember { HomeHeroBackdropHost() }
         NuvioScreen(
             modifier = Modifier.fillMaxSize().then(heroStretchModifier),
             horizontalPadding = 0.dp,
             topPadding = effectiveTopPadding,
             listState = homeListState,
+            backdrop = {
+                // Only while the hero is showing; the host keeps its last content otherwise.
+                if (showHeroSlot && !showHeroSkeleton && homeUiState.heroItems.isNotEmpty()) {
+                    heroBackdropHost.content?.invoke()
+                }
+            },
         ) {
             if (showHeroSlot) {
                 item(key = "home_hero", contentType = "hero") {
@@ -999,16 +1009,20 @@ fun HomeScreen(
                                 sectionPadding = if (isDesktop) homeSectionPadding else null,
                             )
 
-                            homeUiState.heroItems.isNotEmpty() -> HomeHeroSection(
-                                items = homeUiState.heroItems,
-                                modifier = Modifier,
-                                viewportHeight = maxHeight,
-                                mobileBelowSectionHeightHint = mobileHeroBelowSectionHeightHint,
-                                sectionPadding = if (isDesktop) homeSectionPadding else null,
-                                listState = homeListState,
-                                stretchPx = { heroStretchState.stretchPx },
-                                onItemClick = onPosterClick,
-                            )
+                            homeUiState.heroItems.isNotEmpty() -> CompositionLocalProvider(
+                                LocalHomeHeroBackdropHost provides heroBackdropHost,
+                            ) {
+                                HomeHeroSection(
+                                    items = homeUiState.heroItems,
+                                    modifier = Modifier,
+                                    viewportHeight = maxHeight,
+                                    mobileBelowSectionHeightHint = mobileHeroBelowSectionHeightHint,
+                                    sectionPadding = if (isDesktop) homeSectionPadding else null,
+                                    listState = homeListState,
+                                    stretchPx = { heroStretchState.stretchPx },
+                                    onItemClick = onPosterClick,
+                                )
+                            }
 
                             else -> HomeHeroReservedSpace(
                                 modifier = Modifier,
