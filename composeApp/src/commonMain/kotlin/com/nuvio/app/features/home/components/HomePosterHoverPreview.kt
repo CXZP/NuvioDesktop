@@ -1,5 +1,12 @@
 package com.nuvio.app.features.home.components
 
+import kotlinx.coroutines.withTimeoutOrNull
+import androidx.compose.ui.input.pointer.isSecondaryPressed
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
+import com.nuvio.app.core.ui.NuvioCardDepthSurface
+import com.nuvio.app.core.ui.nuvioCardDepth
+import com.nuvio.app.features.details.prefetchDetailsOnHover
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -123,16 +130,17 @@ internal fun HomePosterHoverPreview(
         return
     }
 
+    val prefetchModifier = Modifier.prefetchDetailsOnHover(item.type, item.id)
     val posterCardStyle = rememberPosterCardStyleUiState()
     val trailerPlaybackEnabled = AppFeaturePolicy.trailerPlaybackMode == TrailerPlaybackMode.IN_APP &&
         posterCardStyle.hoverPreviewTrailerEnabled
     if (!posterCardStyle.hoverPreviewEnabled) {
-        content(modifier)
+        content(modifier.then(prefetchModifier))
         return
     }
 
     if (PosterZoomOverlayCoordinator.isVisible) {
-        content(modifier)
+        content(modifier.then(prefetchModifier))
         return
     }
 
@@ -140,6 +148,10 @@ internal fun HomePosterHoverPreview(
     val previewInteractionSource = remember { MutableInteractionSource() }
     val anchorHovered by anchorInteractionSource.collectIsHoveredAsState()
     val previewHovered by previewInteractionSource.collectIsHoveredAsState()
+    val openOnLongPress = posterCardStyle.hoverPreviewOnLongPress
+    // Long-press mode: set by holding or right-clicking the poster; cleared when the pointer leaves
+    // both the poster and the preview.
+    var longPressOpened by remember(item.type, item.id) { mutableStateOf(false) }
     var previewVisible by remember(item.type, item.id) { mutableStateOf(false) }
     var popupMounted by remember(item.type, item.id) { mutableStateOf(false) }
     var previewDismissedByScroll by remember(item.type, item.id) { mutableStateOf(false) }
@@ -168,7 +180,23 @@ internal fun HomePosterHoverPreview(
         previewHovered,
         posterCardStyle.hoverPreviewOpenDelayMillis,
         previewDismissedByScroll,
+        openOnLongPress,
+        longPressOpened,
     ) {
+        if (openOnLongPress) {
+            if (longPressOpened && (anchorHovered || previewHovered || !popupMounted)) {
+                popupMounted = true
+                withFrameNanos { }
+                previewVisible = true
+            } else if (popupMounted) {
+                delay(HoverPreviewCloseDelayMillis)
+                longPressOpened = false
+                previewVisible = false
+                delay(HoverPreviewExitDurationMillis.toLong())
+                popupMounted = false
+            }
+            return@LaunchedEffect
+        }
         if (previewDismissedByScroll) {
             if (!anchorHovered && !previewHovered) {
                 previewDismissedByScroll = false
@@ -278,7 +306,12 @@ internal fun HomePosterHoverPreview(
     }
 
     Box(modifier = modifier) {
-        content(Modifier.hoverable(anchorInteractionSource))
+        androidx.compose.runtime.CompositionLocalProvider(
+            com.nuvio.app.core.ui.LocalPosterLongPressOverride provides
+                if (openOnLongPress) ({ longPressOpened = true }) else null,
+        ) {
+            content(Modifier.hoverable(anchorInteractionSource).then(prefetchModifier))
+        }
 
         if (popupMounted) {
             Popup(
@@ -510,7 +543,8 @@ private fun HomePosterPreviewCard(
                     Surface(
                         modifier = Modifier
                             .weight(1f)
-                            .height(NuvioTokens.Space.s40),
+                            .height(NuvioTokens.Space.s40)
+                            .nuvioCardDepth(tokens.shapes.button, NuvioCardDepthSurface.Controls),
                         color = tokens.colors.accent,
                         contentColor = tokens.colors.onAccent,
                         shape = tokens.shapes.button,
@@ -609,3 +643,4 @@ private class HomePosterPreviewPositionProvider(
         )
     }
 }
+

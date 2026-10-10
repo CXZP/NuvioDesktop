@@ -1,5 +1,9 @@
 package com.nuvio.app.features.details.components
 
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.Json
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.foundation.gestures.Orientation
 import com.nuvio.app.core.ui.smoothWheelScroll
 import androidx.compose.foundation.background
@@ -233,7 +237,7 @@ private fun TrailerCard(
         }
 
         Text(
-            text = trailer.displayName ?: trailer.name,
+            text = rememberTrailerTitle(trailer),
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
             style = MaterialTheme.typography.bodyMedium.copy(
@@ -316,3 +320,31 @@ private fun trailerSectionSizing(maxWidthDp: Float, userCornerRadius: androidx.c
             metaFontSize = 10.sp,
         )
     }
+
+/**
+ * Addons often send trailers with no name, which the parser fills with the generic "Trailer", so a
+ * row reads "Trailer, Trailer, Trailer". Those take the video's own title from YouTube's oEmbed.
+ */
+@Composable
+private fun rememberTrailerTitle(trailer: MetaTrailer): String {
+    val given = trailer.displayName ?: trailer.name
+    val generic = stringResource(Res.string.generic_trailer)
+    if (given != generic || !trailer.site.equals("YouTube", ignoreCase = true)) return given
+    var title by remember(trailer.key) { mutableStateOf(youTubeTitleCache[trailer.key]) }
+    LaunchedEffect(trailer.key) {
+        if (title != null) return@LaunchedEffect
+        val fetched = runCatching {
+            val body = com.nuvio.app.features.addons.httpGetText(
+                "https://www.youtube.com/oembed?format=json&url=https://www.youtube.com/watch?v=${trailer.key}",
+            )
+            Json.parseToJsonElement(body).jsonObject["title"]?.jsonPrimitive?.content
+        }.getOrNull()?.takeIf { it.isNotBlank() }
+        if (fetched != null) {
+            youTubeTitleCache[trailer.key] = fetched
+            title = fetched
+        }
+    }
+    return title ?: given
+}
+
+private val youTubeTitleCache = mutableMapOf<String, String>()

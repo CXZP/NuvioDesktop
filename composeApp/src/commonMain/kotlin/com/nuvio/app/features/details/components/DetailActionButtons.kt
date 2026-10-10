@@ -1,5 +1,10 @@
 package com.nuvio.app.features.details.components
 
+import androidx.compose.ui.graphics.Color
+import com.nuvio.app.isDesktop
+import com.nuvio.app.core.ui.nuvioTooltip
+import com.nuvio.app.core.ui.NuvioCardDepthSurface
+import com.nuvio.app.core.ui.nuvioCardDepth
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -108,10 +113,20 @@ fun DetailActionButtons(
             Surface(
                 modifier = Modifier
                     .weight(1f)
-                    .height(buttonHeight),
+                    .height(buttonHeight)
+                    .nuvioCardDepth(playShape, NuvioCardDepthSurface.Controls),
                 shape = playShape,
-                color = if (playEnabled) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.surfaceVariant,
-                contentColor = if (playEnabled) MaterialTheme.colorScheme.background else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+                // Desktop: glass over the backdrop, like the hero's View Details button.
+                color = when {
+                    !playEnabled -> MaterialTheme.colorScheme.surfaceVariant
+                    isDesktop -> Color.White.copy(alpha = 0.16f)
+                    else -> MaterialTheme.colorScheme.onBackground
+                },
+                contentColor = when {
+                    !playEnabled -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                    isDesktop -> Color.White
+                    else -> MaterialTheme.colorScheme.background
+                },
             ) {
                 Row(
                     modifier = Modifier
@@ -205,7 +220,7 @@ fun DetailActionButtons(
 
             if (hasSecondaryActions) {
                 Surface(
-                    modifier = Modifier.size(iconButtonSize),
+                    modifier = Modifier.nuvioTooltip(actionsMenuLabel).size(iconButtonSize).nuvioCardDepth(CircleShape, NuvioCardDepthSurface.Controls),
                     shape = CircleShape,
                     color = if (actionsExpanded) {
                         MaterialTheme.colorScheme.onBackground
@@ -309,11 +324,11 @@ internal fun DetailIconAction(
     onLongClick: (() -> Unit)? = null,
 ) {
     Surface(
-        modifier = modifier.graphicsLayer {
+        modifier = modifier.nuvioTooltip(label).graphicsLayer {
             alpha = progress
             scaleX = 0.86f + (0.14f * progress)
             scaleY = 0.86f + (0.14f * progress)
-        },
+        }.nuvioCardDepth(CircleShape, NuvioCardDepthSurface.Controls),
         shape = CircleShape,
         color = if (active) {
             MaterialTheme.colorScheme.onBackground

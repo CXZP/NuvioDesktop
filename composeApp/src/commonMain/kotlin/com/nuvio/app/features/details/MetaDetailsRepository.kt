@@ -177,6 +177,50 @@ object MetaDetailsRepository {
         }
     }
 
+    private val prefetchingRequestKeys = mutableSetOf<String>()
+
+    /**
+     * Loads an item's details into the cache in the background, the way [load] would, without
+     * touching the screen state. Desktop calls it while the pointer rests on a poster, so the details
+     * page usually has everything by the time it opens instead of showing a spinner.
+     */
+    fun prefetch(type: String, id: String) {
+        val requestKey = "$type:$id"
+        if (requestKey == activeRequestKey || requestKey in prefetchingRequestKeys) return
+        val mdbListSettings = MdbListSettingsRepository.snapshot()
+        val metaScreenSettingsFingerprint = buildMetaScreenSettingsFingerprint(mdbListSettings)
+        val cachedEntry = cachedMetaByRequestKey[requestKey]
+        if (cachedEntry?.metaScreenMeta != null &&
+            cachedEntry.metaScreenSettingsFingerprint == metaScreenSettingsFingerprint
+        ) {
+            return
+        }
+
+        prefetchingRequestKeys += requestKey
+        scope.launch {
+            try {
+                val meta = fetch(type, id) ?: return@launch
+                if (shouldEnrichForMetaScreen(meta, id, mdbListSettings)) {
+                    withContext(Dispatchers.Default) {
+                        enrichForMetaScreen(
+                            requestKey = requestKey,
+                            meta = meta,
+                            fallbackItemId = id,
+                            fallbackItemType = type,
+                            settings = mdbListSettings,
+                            settingsFingerprint = metaScreenSettingsFingerprint,
+                        )
+                    }
+                }
+            } catch (e: Throwable) {
+                if (e is CancellationException) throw e
+                log.w { "Prefetch failed — type=$type id=$id: ${e.message}" }
+            } finally {
+                prefetchingRequestKeys -= requestKey
+            }
+        }
+    }
+
     fun peek(type: String, id: String): MetaDetails? {
         val requestKey = "$type:$id"
         val currentMeta = _uiState.value.meta?.takeIf { it.type == type && it.id == id }

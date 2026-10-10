@@ -76,7 +76,6 @@ import kotlin.math.roundToInt
 import nuvio.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
 
-private val ContinueWatchingStatusBadgeShape = RoundedCornerShape(4.dp)
 private val ContinueWatchingNewEpisodeBadgeColor = Color(0xFF1D4ED8)
 private val ContinueWatchingNewSeasonBadgeColor = Color(0xFFB45309)
 private const val ContinueWatchingLandscapeCardScale = 1.2f
@@ -629,8 +628,8 @@ private fun continueWatchingLandscapeCardMetrics(
             badgeHorizontalPadding = 6.dp,
             badgeVerticalPadding = 2.dp,
             progressHorizontalPadding = 8.dp,
-            progressBottomPadding = 3.dp,
-            progressHeight = 3.dp,
+            progressBottomPadding = 8.dp,
+            progressHeight = 4.dp,
             titleTextSize = 12.sp,
             metaTextSize = 9.sp,
             badgeTextSize = 8.sp,
@@ -644,8 +643,8 @@ private fun continueWatchingLandscapeCardMetrics(
             badgeHorizontalPadding = 7.dp,
             badgeVerticalPadding = 3.dp,
             progressHorizontalPadding = 8.dp,
-            progressBottomPadding = 3.dp,
-            progressHeight = 3.dp,
+            progressBottomPadding = 8.dp,
+            progressHeight = 4.dp,
             titleTextSize = 13.sp,
             metaTextSize = 10.sp,
             badgeTextSize = 9.sp,
@@ -658,9 +657,9 @@ private fun continueWatchingLandscapeCardMetrics(
             badgeInset = 7.dp,
             badgeHorizontalPadding = 7.dp,
             badgeVerticalPadding = 3.dp,
-            progressHorizontalPadding = 9.dp,
-            progressBottomPadding = 4.dp,
-            progressHeight = 3.dp,
+            progressHorizontalPadding = 10.dp,
+            progressBottomPadding = 10.dp,
+            progressHeight = 5.dp,
             titleTextSize = 14.sp,
             metaTextSize = 10.sp,
             badgeTextSize = 10.sp,
@@ -763,10 +762,22 @@ private fun ContinueWatchingCard(
             )
         }
         if (item.shufflePlayback) ShuffleBadge(Modifier.align(Alignment.TopStart).padding(8.dp))
+        // The progress bar sits inside the card, lined up with the text above it, rather than
+        // hugging the card's bottom edge.
+        val hasProgress = item.progressFraction > 0f
         Column(
             modifier = Modifier
                 .align(Alignment.BottomStart)
-                .padding(cardMetrics.contentPadding),
+                .padding(
+                    start = cardMetrics.contentPadding,
+                    end = cardMetrics.contentPadding,
+                    top = cardMetrics.contentPadding,
+                    bottom = if (hasProgress) {
+                        cardMetrics.progressBottomPadding + cardMetrics.progressHeight + 6.dp
+                    } else {
+                        cardMetrics.contentPadding
+                    },
+                ),
             verticalArrangement = Arrangement.spacedBy(cardMetrics.textGap),
         ) {
             if (episodeCode != null) {
@@ -808,7 +819,9 @@ private fun ContinueWatchingCard(
             modifier = Modifier
                 .align(Alignment.TopEnd)
                 .padding(cardMetrics.badgeInset)
-                .clip(ContinueWatchingStatusBadgeShape)
+                // Concentric with the card: the card's corner radius less the badge's inset, so
+                // the badge's corner follows the card's curve instead of sitting in it squarely.
+                .clip(RoundedCornerShape((cardMetrics.cornerRadius - cardMetrics.badgeInset).coerceAtLeast(4.dp)))
                 .background(badgeBackground)
                 .padding(
                     horizontal = cardMetrics.badgeHorizontalPadding,
@@ -830,8 +843,9 @@ private fun ContinueWatchingCard(
                 modifier = Modifier
                     .align(Alignment.BottomStart)
                     .padding(
-                        horizontal = cardMetrics.progressHorizontalPadding,
-                        vertical = cardMetrics.progressBottomPadding,
+                        start = cardMetrics.progressHorizontalPadding,
+                        end = cardMetrics.progressHorizontalPadding,
+                        bottom = cardMetrics.progressBottomPadding,
                     )
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(999.dp))

@@ -1,5 +1,7 @@
 package com.nuvio.app.features.home.components
 
+import com.nuvio.app.core.ui.NuvioCardDepthSurface
+import com.nuvio.app.core.ui.nuvioCardDepth
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.drawscope.withTransform
@@ -48,6 +50,21 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.foundation.MutatorMutex
+import androidx.compose.runtime.Stable
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.ui.zIndex
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeoutOrNull
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.mutableStateSetOf
+import androidx.compose.runtime.snapshotFlow
+import kotlinx.coroutines.withContext
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
@@ -127,6 +144,24 @@ private const val HERO_DESKTOP_PICTURE_BOTTOM_FADE_FRACTION = 0.20f
 private const val HERO_DESKTOP_MASK_BLEED_PX = 4f
 // How strongly the backdrop zooms when the hero is pulled down past the top.
 private const val HERO_DESKTOP_STRETCH_ZOOM = 0.5f
+// Desktop item change, the way Kodi skins such as Arctic Fuse do it: a short crossfade of the
+// picture while the text fades out and the next text fades in. A long dissolve left the two
+// pictures showing through each other on screen.
+private val HeroDesktopPageChangeSpec = tween<Float>(
+    durationMillis = 450,
+    easing = CubicBezierEasing(0.4f, 0f, 0.2f, 1f),
+)
+// The old text is gone by this share of the change, and the new text starts after the second one,
+// so titles and descriptions never show on top of each other.
+private const val HERO_DESKTOP_TEXT_OUT_END = 0.3f
+private const val HERO_DESKTOP_TEXT_IN_START = 0.4f
+// The logo and description slide this far: the old ones out to one side, the new ones in from the
+// other, in the direction of the change, so the change reads as moving to the next item.
+private val HERO_DESKTOP_TEXT_SLIDE = 72.dp
+// How long an item has to stay in the hero before its details are loaded in the background.
+private const val HERO_DESKTOP_DETAILS_PREFETCH_DELAY_MS = 1_200L
+// Longest wait for the next item's picture before the change starts anyway.
+private const val HERO_DESKTOP_PRELOAD_TIMEOUT_MS = 3_000L
 // Background-coloured shade over the spread, (position, alpha), adapted from Arctic Fuse's
 // combined_flixart.png overlay: darkest towards the left and below the picture.
 private val HERO_DESKTOP_LEFT_SHADE = arrayOf(0.00f to 0.80f, 0.25f to 0.50f, 0.50f to 0f)
@@ -192,6 +227,7 @@ fun HomeHeroSection(
     }
     val coroutineScope = rememberCoroutineScope()
     var pagerDragActive by remember { mutableStateOf(false) }
+    val crossfade = remember(pagerState) { HeroCrossfade() }
     val autoScrollPage = pagerState.settledPage
 
     LaunchedEffect(pagerState) {
@@ -205,15 +241,30 @@ fun HomeHeroSection(
         }
     }
 
+    // Desktop: load the shown item's details in the background, so View Details opens a filled page
+    // instead of a blank one while the addon and TMDB answer.
+    ScreenActivityEffect(autoScrollPage, items.size) { active ->
+        if (!active || !isDesktop) return@ScreenActivityEffect
+        delay(HERO_DESKTOP_DETAILS_PREFETCH_DELAY_MS)
+        val item = items[autoScrollPage % items.size]
+        com.nuvio.app.features.details.MetaDetailsRepository.prefetch(item.type, item.id)
+    }
+
     ScreenActivityEffect(autoScrollPage, items.size) { active ->
         if (!active || items.size <= 1) return@ScreenActivityEffect
         delay(HERO_AUTO_SCROLL_INTERVAL_MS)
-        while (pagerState.isScrollInProgress) {
+        while (pagerState.isScrollInProgress || crossfade.active) {
             delay(100L)
         }
 
         val nextPage = pagerState.currentPage + 1
-        pagerState.animateScrollToPage(nextPage)
+        if (isDesktop) {
+            // Launched outside this effect: when the effect restarted mid-change, the change was
+            // cut short, snapped back and started over, which showed as a flicker.
+            coroutineScope.launch { crossfade.animateTo(pagerState, nextPage) }
+        } else {
+            pagerState.animateHeroToPage(nextPage)
+        }
     }
 
     BoxWithConstraints(
@@ -273,6 +324,7 @@ fun HomeHeroSection(
                         layout.contentHorizontalPadding,
                     ),
                     coroutineScope = coroutineScope,
+                    crossfade = crossfade,
                     onItemClick = onItemClick,
                 )
             } else {
@@ -304,6 +356,7 @@ private fun HeroBackgroundLayers(
     stretchPx: () -> Float,
     includePagerNeighbors: Boolean,
     desktopFrame: Boolean = false,
+    crossfade: HeroCrossfade? = null,
 ) {
     val layerPages = rememberHeroLayerPages(
         pagerState = pagerState,
@@ -311,13 +364,22 @@ private fun HeroBackgroundLayers(
         includePagerNeighbors = includePagerNeighbors,
     )
 
-    if (desktopFrame) {
+    if (desktopFrame && crossfade != null) {
         val host = LocalHomeHeroBackdropHost.current
         val backdrop: @Composable () -> Unit = {
             DesktopHeroBackdrops(
                 items = items,
-                pages = layerPages,
+                // Worked out here, not captured from the hero: the hero updates this lambda a frame
+                // late, and a stale page list dropped the new picture for a frame after each change.
+                pages = crossfade.withPages(
+                    rememberHeroLayerPages(
+                        pagerState = pagerState,
+                        itemCount = items.size,
+                        includePagerNeighbors = includePagerNeighbors,
+                    ),
+                ),
                 pagerState = pagerState,
+                crossfade = crossfade,
                 listState = listState,
                 heroWidthPx = heroWidthPx,
                 heroHeightPx = heroHeightPx,
@@ -397,6 +459,7 @@ private fun DesktopHeroBackdrops(
     items: List<MetaPreview>,
     pages: List<Int>,
     pagerState: PagerState,
+    crossfade: HeroCrossfade,
     listState: LazyListState?,
     heroWidthPx: Float,
     heroHeightPx: Float,
@@ -438,29 +501,46 @@ private fun DesktopHeroBackdrops(
             key(page) {
                 val item = items[page % items.size]
                 val imageUrl = originalTmdbImageUrl(item.banner ?: item.poster)
+                val incoming by remember(crossfade, pagerState, page) {
+                    derivedStateOf { crossfade.isIncoming(pagerState, page) }
+                }
                 Box(
                     modifier = Modifier
+                        // The picture fading in is drawn over the one it replaces.
+                        .zIndex(if (incoming) 1f else 0f)
                         .fillMaxWidth()
                         .height(spreadHeight)
                         // Scrolls with the page and fades as the hero leaves, like Arctic Fuse; no
-                        // scroll parallax. Pulling down past the top zooms in from the picture's
-                        // corner, so the picture follows the stretch.
+                        // scroll parallax. Pulling down past the top zooms in around the middle of the
+                        // picture's top third, where faces and titles usually are.
                         .graphicsLayer {
-                            val pageOffset = heroPageOffset(pagerState, page)
+                            val pageOffset = crossfade.offset(pagerState, page)
                             val scrollOffsetPx = heroScrollOffsetPx(listState, heroHeightPx)
                             val scrollFade =
                                 1f - (scrollOffsetPx / heroHeightPx.coerceAtLeast(1f)).coerceIn(0f, 1f)
-                            alpha = heroPageVisibility(pageOffset) * scrollFade
+                            // The picture being replaced stays opaque underneath while the new one
+                            // fades in over it. With both half transparent, the dark background showed
+                            // through in the middle of every change.
+                            val visibility = smoothStep(heroPageVisibility(pageOffset))
+                            alpha = when {
+                                incoming -> visibility
+                                visibility > 0f -> 1f
+                                else -> 0f
+                            } * scrollFade
                             val stretchZoom = 1f + stretchPx().coerceAtLeast(0f) *
                                 HERO_DESKTOP_STRETCH_ZOOM / heroHeightPx.coerceAtLeast(1f)
-                            transformOrigin = TransformOrigin(1f, 0f)
+                            transformOrigin = TransformOrigin(
+                                1f - backdropWidthPx / 2f / size.width.coerceAtLeast(1f),
+                                backdropHeightPx / 6f / size.height.coerceAtLeast(1f),
+                            )
                             scaleX = stretchZoom
                             scaleY = stretchZoom
-                            translationX = -pageOffset * heroWidthPx * HERO_BACKGROUND_PARALLAX
+                            // No sideways parallax: the dissolve is in place. Shifting the layers
+                            // uncovered their edges as dark and bright strips.
                         },
                 ) {
                     // One load feeds both layers. No crossfade: the picture and its spread show up
-                    // together in the frame the load finishes.
+                    // together once the spread is ready.
                     val platformContext = LocalPlatformContext.current
                     val request = remember(imageUrl, backdropWidthPx, backdropHeightPx) {
                         ImageRequest.Builder(platformContext)
@@ -486,10 +566,18 @@ private fun DesktopHeroBackdrops(
                         backdropWidthPx,
                         shadeColor,
                     )
-                    val spread = remember(loadedPicture, spreadKey) {
-                        loadedPicture?.let {
-                            HeroSpreadCache.get(spreadKey) ?: renderBlurredSpread(
-                                painter = it,
+                    // Rendered off the UI thread. Done during composition it held up the frames of the
+                    // item change, and the new spread arrived only after the old one was gone, leaving
+                    // the left side black for a moment.
+                    var spread by remember(loadedPicture, spreadKey) {
+                        mutableStateOf(loadedPicture?.let { HeroSpreadCache.get(spreadKey) })
+                    }
+                    LaunchedEffect(loadedPicture, spreadKey) {
+                        val painter = loadedPicture ?: return@LaunchedEffect
+                        if (spread != null) return@LaunchedEffect
+                        val rendered = withContext(Dispatchers.Default) {
+                            renderBlurredSpread(
+                                painter = painter,
                                 spreadSize = spreadSizePx,
                                 pictureWidth = backdropWidthPx,
                                 pictureHeight = backdropHeightPx,
@@ -497,11 +585,26 @@ private fun DesktopHeroBackdrops(
                                 gradientColumns = HERO_DESKTOP_SPREAD_GRADIENT_COLUMNS,
                                 shadeColor = shadeColor,
                                 density = density,
-                            ).also { bitmap -> HeroSpreadCache.put(spreadKey, bitmap) }
+                            )
                         }
+                        HeroSpreadCache.put(spreadKey, rendered)
+                        spread = rendered
+                    }
+                    // The last picture and spread shown for this item, kept while a new size is
+                    // loaded and rendered (going fullscreen), so the hero doesn't go black meanwhile.
+                    var shownPicture by remember(imageUrl) { mutableStateOf<Painter?>(null) }
+                    var shownSpread by remember(imageUrl) { mutableStateOf<ImageBitmap?>(null) }
+                    if (loadedPicture != null && spread != null) {
+                        shownPicture = loadedPicture
+                        shownSpread = spread
+                    }
+                    val ready = shownSpread != null
+                    DisposableEffect(crossfade, page, ready) {
+                        if (ready) crossfade.readyPages += page
+                        onDispose { crossfade.readyPages -= page }
                     }
                     Canvas(modifier = Modifier.fillMaxSize()) {
-                        spread?.let {
+                        shownSpread?.let {
                             drawImage(
                                 image = it,
                                 dstSize = IntSize(size.width.roundToInt(), size.height.roundToInt()),
@@ -510,8 +613,8 @@ private fun DesktopHeroBackdrops(
                             )
                         }
                     }
-                    Image(
-                        painter = loadedPicture ?: picture,
+                    if (ready) Image(
+                        painter = shownPicture ?: picture,
                         contentDescription = item.name,
                         modifier = Modifier
                             .align(Alignment.TopEnd)
@@ -878,6 +981,7 @@ private fun heroLayerPages(
 private fun HeroDesktopContentLayers(
     items: List<MetaPreview>,
     pagerState: PagerState,
+    crossfade: HeroCrossfade,
     layout: HomeHeroLayout,
     heroWidthPx: Float,
     onItemClick: ((MetaPreview) -> Unit)?,
@@ -889,22 +993,48 @@ private fun HeroDesktopContentLayers(
         includePagerNeighbors = includePagerNeighbors,
     )
 
-    layerPages.forEach { page ->
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .graphicsLayer {
-                    val pageOffset = heroPageOffset(pagerState, page)
-
-                    alpha = heroPageVisibility(pageOffset)
-                    translationX = -pageOffset * heroWidthPx * HERO_CONTENT_PARALLAX
-                },
-        ) {
-            DesktopHeroContentBlock(
-                item = items[page % items.size],
-                layout = layout,
-                onItemClick = onItemClick,
-            )
+    // The text slides and fades per item; the View Details button stays put below it, the same for
+    // every item, instead of moving with the text and jumping with each description's length.
+    Column(horizontalAlignment = Alignment.Start) {
+        Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.BottomStart) {
+            crossfade.withPages(layerPages).forEach { page ->
+                val incoming by remember(crossfade, pagerState, page) {
+                    derivedStateOf { crossfade.isIncoming(pagerState, page) }
+                }
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .graphicsLayer {
+                            val pageOffset = crossfade.offset(pagerState, page)
+                            val visibility = heroPageVisibility(pageOffset)
+                            translationX = -pageOffset * HERO_DESKTOP_TEXT_SLIDE.toPx()
+                            if (incoming) {
+                                val shown = smoothStep(
+                                    (visibility - HERO_DESKTOP_TEXT_IN_START) / (1f - HERO_DESKTOP_TEXT_IN_START),
+                                )
+                                alpha = shown
+                            } else {
+                                alpha = smoothStep(
+                                    (visibility - (1f - HERO_DESKTOP_TEXT_OUT_END)) / HERO_DESKTOP_TEXT_OUT_END,
+                                )
+                            }
+                        },
+                ) {
+                    DesktopHeroContentBlock(
+                        item = items[page % items.size],
+                        layout = layout,
+                        onItemClick = onItemClick,
+                        showButton = false,
+                    )
+                }
+            }
+        }
+        if (onItemClick != null) {
+            Spacer(modifier = Modifier.height(NuvioTokens.Space.s24))
+            DesktopHeroViewDetailsButton {
+                val page = crossfade.to ?: pagerState.currentPage
+                onItemClick(items[page % items.size])
+            }
         }
     }
 }
@@ -1034,6 +1164,7 @@ private fun DesktopHomeHeroFrame(
     includePagerNeighbors: Boolean,
     contentHorizontalPadding: Dp,
     coroutineScope: CoroutineScope,
+    crossfade: HeroCrossfade,
     onItemClick: ((MetaPreview) -> Unit)?,
 ) {
     val colorScheme = MaterialTheme.colorScheme
@@ -1054,6 +1185,7 @@ private fun DesktopHomeHeroFrame(
             stretchPx = stretchPx,
             includePagerNeighbors = includePagerNeighbors,
             desktopFrame = true,
+            crossfade = crossfade,
         )
 
         Box(
@@ -1097,6 +1229,7 @@ private fun DesktopHomeHeroFrame(
                 HeroDesktopContentLayers(
                     items = items,
                     pagerState = pagerState,
+                    crossfade = crossfade,
                     layout = layout,
                     heroWidthPx = heroWidthPx,
                     onItemClick = onItemClick,
@@ -1124,6 +1257,7 @@ private fun DesktopHomeHeroFrame(
                 itemCount = items.size,
                 pagerState = pagerState,
                 coroutineScope = coroutineScope,
+                crossfade = crossfade,
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
                     .padding(
@@ -1146,6 +1280,7 @@ private fun HeroPageIndicatorRow(
     pagerState: PagerState,
     coroutineScope: CoroutineScope,
     modifier: Modifier = Modifier,
+    crossfade: HeroCrossfade? = null,
 ) {
     if (itemCount <= 1) return
 
@@ -1156,12 +1291,19 @@ private fun HeroPageIndicatorRow(
     ) {
         repeat(itemCount) { index ->
             val page = heroPageForItem(pagerState.currentPage, index, itemCount)
-            val activeFraction = heroPageVisibility(pagerState, page)
+            val activeFraction = heroPageVisibility(
+                crossfade?.offset(pagerState, page) ?: heroPageOffset(pagerState, page),
+            )
             Box(
                 modifier = Modifier
                     .clickable {
                         coroutineScope.launch {
-                            pagerState.animateScrollToPage(heroPageForItem(pagerState.currentPage, index, itemCount))
+                            val target = heroPageForItem(pagerState.currentPage, index, itemCount)
+                            if (crossfade != null) {
+                                crossfade.animateTo(pagerState, target)
+                            } else {
+                                pagerState.animateHeroToPage(target)
+                            }
                         }
                     }
                     .clip(CircleShape)
@@ -1195,6 +1337,85 @@ private fun heroPageVisibility(
 ): Float = heroPageVisibility(heroPageOffset(pagerState, page))
 
 private fun heroPageVisibility(pageOffset: Float): Float = (1f - abs(pageOffset)).coerceIn(0f, 1f)
+
+private fun smoothStep(value: Float): Float {
+    val t = value.coerceIn(0f, 1f)
+    return t * t * (3f - 2f * t)
+}
+
+/**
+ * Desktop item changes from the timer and the dots: a dissolve straight from one item to the other.
+ * Scrolling the pager there instead ran through every item in between (a dot can be several items
+ * away) and jumped where the pager skipped ahead. The pager moves to the new page once the dissolve
+ * is done; dragging still moves the pager directly.
+ */
+@Stable
+private class HeroCrossfade {
+    var from by mutableStateOf<Int?>(null)
+        private set
+    var to by mutableStateOf<Int?>(null)
+        private set
+    private val progress = Animatable(0f)
+    private val mutex = MutatorMutex()
+    // 1 when moving to a later item, -1 to an earlier one (a dot to the left).
+    private var direction by mutableStateOf(1f)
+
+    /** Pages whose picture and spread are ready to show. */
+    val readyPages = mutableStateSetOf<Int>()
+
+    val active: Boolean get() = to != null
+
+    /** Like [heroPageOffset]: 0 for the item in place, towards ±1 for the one leaving or arriving. */
+    fun offset(pagerState: PagerState, page: Int): Float {
+        val target = to ?: return heroPageOffset(pagerState, page)
+        return when (page) {
+            target -> -(1f - progress.value) * direction
+            from -> progress.value * direction
+            else -> 1f
+        }
+    }
+
+    fun isIncoming(pagerState: PagerState, page: Int): Boolean {
+        val target = to
+        return if (target != null) page == target else heroPageVisibility(pagerState, page) < 0.5f
+    }
+
+    fun withPages(pages: List<Int>): List<Int> = (pages + listOfNotNull(from, to)).distinct()
+
+    suspend fun animateTo(pagerState: PagerState, page: Int) = mutex.mutate {
+        val start = pagerState.currentPage
+        if (page == start) return@mutate
+        try {
+            direction = if (page > start) 1f else -1f
+            from = start
+            to = page
+            progress.snapTo(0f)
+            // The new page is composed (invisible) from here on, so its picture loads and its
+            // spread renders before the dissolve starts, instead of popping in half way.
+            withTimeoutOrNull(HERO_DESKTOP_PRELOAD_TIMEOUT_MS) {
+                snapshotFlow { page in readyPages }.first { it }
+            }
+            progress.animateTo(1f, HeroDesktopPageChangeSpec)
+        } finally {
+            // Also when interrupted (another dot, leaving the screen): settle on whichever item
+            // was showing more.
+            withContext(NonCancellable) {
+                pagerState.scrollToPage(if (progress.value >= 0.5f) page else start)
+                from = null
+                to = null
+                progress.snapTo(0f)
+            }
+        }
+    }
+}
+
+private suspend fun PagerState.animateHeroToPage(page: Int) {
+    if (isDesktop) {
+        animateScrollToPage(page, animationSpec = HeroDesktopPageChangeSpec)
+    } else {
+        animateScrollToPage(page)
+    }
+}
 
 private fun currentHeroItem(
     items: List<MetaPreview>,
@@ -1358,6 +1579,7 @@ private fun DesktopHeroContentBlock(
     item: MetaPreview,
     layout: HomeHeroLayout,
     onItemClick: ((MetaPreview) -> Unit)?,
+    showButton: Boolean = true,
 ) {
     val colorScheme = MaterialTheme.colorScheme
     var logoLoadError by remember(item.type, item.id, item.logo) {
@@ -1444,32 +1666,42 @@ private fun DesktopHeroContentBlock(
             )
         }
 
-        if (onItemClick != null) {
+        if (onItemClick != null && showButton) {
             Spacer(modifier = Modifier.height(NuvioTokens.Space.s24))
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(NuvioTokens.Space.s12),
-                verticalAlignment = Alignment.CenterVertically,
+            DesktopHeroViewDetailsButton { onItemClick(item) }
+        }
+    }
+}
+
+@Composable
+private fun DesktopHeroViewDetailsButton(onClick: () -> Unit) {
+    val colorScheme = MaterialTheme.colorScheme
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(NuvioTokens.Space.s12),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        // A glass button over the backdrop: translucent, with the Card Depth edge and sheen.
+        val shape = RoundedCornerShape(40.dp)
+        Surface(
+            modifier = Modifier
+                .height(48.dp)
+                .nuvioCardDepth(shape, NuvioCardDepthSurface.Controls, fallbackBorderAlpha = 0.22f)
+                .clip(shape)
+                .clickable(onClick = onClick),
+            color = Color.White.copy(alpha = 0.16f),
+            contentColor = Color.White,
+            shape = shape,
+        ) {
+            Box(
+                modifier = Modifier.padding(horizontal = 24.dp),
+                contentAlignment = Alignment.Center,
             ) {
-                Surface(
-                    modifier = Modifier
-                        .height(48.dp)
-                        .clickable { onItemClick(item) },
-                    color = colorScheme.onBackground,
-                    contentColor = colorScheme.background,
-                    shape = RoundedCornerShape(40.dp),
-                ) {
-                    Box(
-                        modifier = Modifier.padding(horizontal = 24.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(
-                            text = stringResource(Res.string.home_view_details),
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1,
-                        )
-                    }
-                }
+                Text(
+                    text = stringResource(Res.string.home_view_details),
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                )
             }
         }
     }
@@ -1730,7 +1962,7 @@ private fun Modifier.homeHeroPagerGesture(
                             settleAnimationStarted = true
                             coroutineScope.launch {
                                 try {
-                                    pagerState.animateScrollToPage(targetPage)
+                                    pagerState.animateHeroToPage(targetPage)
                                 } finally {
                                     onDragActiveChange(false)
                                 }
