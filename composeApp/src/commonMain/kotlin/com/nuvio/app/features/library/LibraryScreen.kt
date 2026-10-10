@@ -1,5 +1,24 @@
 package com.nuvio.app.features.library
 
+import com.nuvio.app.features.home.components.LocalRefreshStaleReleaseInfo
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.Animatable
+import com.nuvio.app.core.ui.nuvioFieldPlaceholder
+import com.nuvio.app.core.ui.nuvioFieldLabel
+import com.nuvio.app.core.ui.nuvioFieldColors
+import com.nuvio.app.core.ui.nuvioFieldShape
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.graphics.Color
+import dev.chrisbanes.haze.hazeEffect
+import dev.chrisbanes.haze.hazeSource
+import dev.chrisbanes.haze.HazeTint
+import dev.chrisbanes.haze.HazeState
+import com.nuvio.app.core.ui.desktopGlassCircle
+import com.nuvio.app.core.ui.nuvioTooltip
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
@@ -275,84 +294,197 @@ fun LibraryScreen(
             }
         }
 
+        // Desktop: the header floats over the list like Search's field, blurring what scrolls under
+        // it, so it is drawn on top of the list instead of inside it.
+        val libraryHaze = remember { HazeState() }
+        var libraryHeaderHeightPx by remember { mutableStateOf(0) }
+        val desktopActionInset = com.nuvio.app.core.ui.fullscreenActionHorizontalInsetForWidth(maxWidth.value)
+        val libraryActions: @Composable () -> Unit = {
+            if (sourceMode == LibraryViewMode.Saved) {
+                LibraryListManagementButton()
+                val targetLayout = if (displaySettings.layoutMode == LibraryLayoutMode.HORIZONTAL) {
+                    LibraryLayoutMode.VERTICAL
+                } else {
+                    LibraryLayoutMode.HORIZONTAL
+                }
+                IconButton(
+                    onClick = {
+                        LibraryDisplaySettingsRepository.setLayoutMode(targetLayout)
+                    },
+                    modifier = Modifier.desktopGlassCircle(48.dp).nuvioTooltip(
+                        if (targetLayout == LibraryLayoutMode.VERTICAL) {
+                            stringResource(Res.string.library_layout_show_vertical)
+                        } else {
+                            stringResource(Res.string.library_layout_show_horizontal)
+                        },
+                    ),
+                ) {
+                    Crossfade(
+                        targetState = targetLayout,
+                        animationSpec = tween(durationMillis = 140),
+                        label = "libraryLayoutAction",
+                    ) { animatedTargetLayout ->
+                        Icon(
+                            imageVector = if (animatedTargetLayout == LibraryLayoutMode.VERTICAL) {
+                                Icons.Rounded.GridView
+                            } else {
+                                Icons.Rounded.ViewAgenda
+                            },
+                            contentDescription = if (animatedTargetLayout == LibraryLayoutMode.VERTICAL) {
+                                stringResource(Res.string.library_layout_show_vertical)
+                            } else {
+                                stringResource(Res.string.library_layout_show_horizontal)
+                            },
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+            if (onDownloadsClick != null) {
+                LibraryDownloadsButton(onClick = onDownloadsClick)
+            }
+        }
+        val libraryHeader: @Composable () -> Unit = libraryHeaderLambda@{
+            if (isDesktop) {
+                // Desktop, like Search: no title strip; the Saved/Cloud switch floats centred under
+                // the menu bar and the buttons sit top right where the details page has its own.
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    val glassCapsule = Modifier
+                        .clip(RoundedCornerShape(percent = 50))
+                        .hazeEffect(libraryHaze) {
+                            blurRadius = 24.dp
+                            noiseFactor = 0f
+                        }
+                        .background(Color(0xFF1C1C1E).copy(alpha = 0.45f))
+                        .padding(6.dp)
+                    androidx.compose.foundation.layout.Column(modifier = Modifier.fillMaxWidth()) {
+                        Spacer(modifier = Modifier.height(68.dp))
+                        // Saved/Cloud and the type/sort filters share one centred row, like the
+                        // search field and Discover's filters.
+                        Row(
+                            modifier = Modifier.align(Alignment.CenterHorizontally),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            LibrarySourceSwitch(
+                                selectedMode = sourceMode,
+                                onModeSelected = { mode ->
+                                    sourceModeName = mode.name
+                                },
+                                modifier = glassCapsule,
+                            )
+                            if (sourceMode == LibraryViewMode.Saved && uiState.isLoaded && uiState.sections.isNotEmpty()) {
+                                LibrarySavedControls(
+                                    layoutMode = displaySettings.layoutMode,
+                                    sourceMode = uiState.sourceMode,
+                                    sortOption = effectiveSortOption,
+                                    verticalProjection = verticalProjection,
+                                    onSectionSelected = { sectionKey ->
+                                        selectedLibrarySectionKey = sectionKey
+                                        selectedLibraryType = null
+                                    },
+                                    onTypeSelected = { type -> selectedLibraryType = type },
+                                    onSortSelected = LibraryDisplaySettingsRepository::setSortOption,
+                                    modifier = glassCapsule,
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(14.dp))
+                    }
+                    androidx.compose.foundation.layout.Row(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(top = 32.dp, end = desktopActionInset),
+                        horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        libraryActions()
+                        com.nuvio.app.core.ui.FullscreenActionButton(buttonSize = 48.dp)
+                    }
+                }
+                return@libraryHeaderLambda
+            }
+            Box(modifier = Modifier.fillMaxWidth()) {
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .then(
+                            if (isDesktop) {
+                                // Desktop: frosted like the search field, so the posters scroll
+                                // under it. (Haze's progressive blur crashes on this Compose
+                                // version: NoSuchMethodError in ShaderBrush.createShader.)
+                                Modifier.hazeEffect(libraryHaze) {
+                                    blurRadius = 24.dp
+                                    noiseFactor = 0f
+                                    tints = listOf(HazeTint(Color.Black.copy(alpha = 0.45f)))
+                                }
+                            } else {
+                                Modifier.background(MaterialTheme.colorScheme.background)
+                            },
+                        )
+                        .nuvioConsumePointerEvents(),
+                )
+                androidx.compose.foundation.layout.Column(
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    NuvioScreenHeader(
+                        title = if (sourceMode == LibraryViewMode.Cloud) {
+                            stringResource(Res.string.library_title)
+                        } else {
+                            when (uiState.sourceMode) {
+                                LibrarySourceMode.LOCAL -> stringResource(Res.string.library_title)
+                                LibrarySourceMode.TRAKT -> stringResource(Res.string.library_trakt_title)
+                                LibrarySourceMode.SIMKL -> stringResource(Res.string.library_simkl_title)
+                                LibrarySourceMode.MDBLIST -> stringResource(Res.string.library_mdblist_title)
+                            }
+                        },
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                        topPadding = topChromePadding,
+                        actions = { libraryActions() },
+                    )
+                    LibrarySourceSwitch(
+                        selectedMode = sourceMode,
+                        onModeSelected = { mode ->
+                            sourceModeName = mode.name
+                        },
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                }
+            }
+        }
+        // Switching Saved/Cloud slides the new list in from the side of the chosen tab and fades it
+        // up; it used to swap in a single frame.
+        val switchProgress = remember { Animatable(1f) }
+        var switchDirection by remember { mutableStateOf(1f) }
+        var shownMode by remember { mutableStateOf(sourceMode) }
+        LaunchedEffect(sourceMode) {
+            if (sourceMode == shownMode) return@LaunchedEffect
+            switchDirection = if (sourceMode == LibraryViewMode.Cloud) 1f else -1f
+            shownMode = sourceMode
+            switchProgress.snapTo(0f)
+            switchProgress.animateTo(1f, tween(420, easing = CubicBezierEasing(0.32f, 0.72f, 0f, 1f)))
+        }
+        // Saved items carry the release line from when they were saved; let posters refresh it.
+        CompositionLocalProvider(LocalRefreshStaleReleaseInfo provides true) {
         NuvioScreen(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer {
+                    alpha = switchProgress.value
+                    translationX = (1f - switchProgress.value) * 48.dp.toPx() * switchDirection
+                }
+                .then(if (isDesktop) Modifier.hazeSource(libraryHaze) else Modifier),
             horizontalPadding = 0.dp,
             topPadding = if (topChromePadding != null) 0.dp else null,
             listState = listState,
         ) {
             stickyHeader {
-                Box(modifier = Modifier.fillMaxWidth()) {
-                    Box(
-                        modifier = Modifier
-                            .matchParentSize()
-                            .background(MaterialTheme.colorScheme.background)
-                            .nuvioConsumePointerEvents(),
-                    )
-                    androidx.compose.foundation.layout.Column(
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        NuvioScreenHeader(
-                            title = if (sourceMode == LibraryViewMode.Cloud) {
-                                stringResource(Res.string.library_title)
-                            } else {
-                                when (uiState.sourceMode) {
-                                    LibrarySourceMode.LOCAL -> stringResource(Res.string.library_title)
-                                    LibrarySourceMode.TRAKT -> stringResource(Res.string.library_trakt_title)
-                                    LibrarySourceMode.SIMKL -> stringResource(Res.string.library_simkl_title)
-                                    LibrarySourceMode.MDBLIST -> stringResource(Res.string.library_mdblist_title)
-                                }
-                            },
-                            modifier = Modifier.padding(horizontal = 16.dp),
-                            topPadding = topChromePadding,
-                            actions = {
-                                if (sourceMode == LibraryViewMode.Saved) {
-                                    LibraryListManagementButton()
-                                    val targetLayout = if (displaySettings.layoutMode == LibraryLayoutMode.HORIZONTAL) {
-                                        LibraryLayoutMode.VERTICAL
-                                    } else {
-                                        LibraryLayoutMode.HORIZONTAL
-                                    }
-                                    IconButton(
-                                        onClick = {
-                                            LibraryDisplaySettingsRepository.setLayoutMode(targetLayout)
-                                        },
-                                    ) {
-                                        Crossfade(
-                                            targetState = targetLayout,
-                                            animationSpec = tween(durationMillis = 140),
-                                            label = "libraryLayoutAction",
-                                        ) { animatedTargetLayout ->
-                                            Icon(
-                                                imageVector = if (animatedTargetLayout == LibraryLayoutMode.VERTICAL) {
-                                                    Icons.Rounded.GridView
-                                                } else {
-                                                    Icons.Rounded.ViewAgenda
-                                                },
-                                                contentDescription = if (animatedTargetLayout == LibraryLayoutMode.VERTICAL) {
-                                                    stringResource(Res.string.library_layout_show_vertical)
-                                                } else {
-                                                    stringResource(Res.string.library_layout_show_horizontal)
-                                                },
-                                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            )
-                                        }
-                                    }
-                                }
-                                if (onDownloadsClick != null) {
-                                    LibraryDownloadsButton(onClick = onDownloadsClick)
-                                }
-                            },
-                        )
-                        LibrarySourceSwitch(
-                            selectedMode = sourceMode,
-                            onModeSelected = { mode ->
-                                sourceModeName = mode.name
-                            },
-                            modifier = Modifier.padding(horizontal = 16.dp),
-                        )
-                        Spacer(modifier = Modifier.height(6.dp))
-                    }
+                if (isDesktop) {
+                    // Room for the floating header drawn over the list (below).
+                    Spacer(modifier = Modifier.height(with(LocalDensity.current) { libraryHeaderHeightPx.toDp() }))
+                } else {
+                    libraryHeader()
                 }
             }
 
@@ -448,7 +580,8 @@ fun LibraryScreen(
                     }
 
                     else -> {
-                        item(
+                        // Desktop shows these in the floating header instead.
+                        if (!isDesktop) item(
                             key = "library-saved-controls:${uiState.sourceMode}:" +
                                 "${displaySettings.layoutMode}:$effectiveSortOption",
                         ) {
@@ -489,6 +622,12 @@ fun LibraryScreen(
                         }
                     }
                 }
+            }
+        }
+        }
+        if (isDesktop) {
+            Box(modifier = Modifier.fillMaxWidth().onSizeChanged { libraryHeaderHeightPx = it.height }) {
+                libraryHeader()
             }
         }
     }
@@ -661,7 +800,8 @@ private fun CloudLibrarySearchField(
         onValueChange = onQueryChange,
         modifier = modifier.fillMaxWidth(),
         singleLine = true,
-        shape = RoundedCornerShape(12.dp),
+        shape = nuvioFieldShape(fallback = RoundedCornerShape(12.dp)),
+        colors = nuvioFieldColors(),
         placeholder = { Text(stringResource(Res.string.cloud_library_search_label)) },
         leadingIcon = {
             Icon(
@@ -671,7 +811,7 @@ private fun CloudLibrarySearchField(
         },
         trailingIcon = {
             if (query.isNotEmpty()) {
-                IconButton(onClick = { onQueryChange("") }) {
+                IconButton(onClick = { onQueryChange("") }, modifier = Modifier.nuvioTooltip(stringResource(Res.string.compose_search_clear))) {
                     Icon(
                         imageVector = Icons.Rounded.Close,
                         contentDescription = stringResource(Res.string.compose_search_clear),
@@ -700,7 +840,8 @@ private fun LibrarySourceSwitch(
     modifier: Modifier = Modifier,
 ) {
     Row(
-        modifier = modifier.fillMaxWidth(),
+        // Desktop: only as wide as its chips, so it can sit centred in the floating header.
+        modifier = if (isDesktop) modifier else modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         LibraryChip(
@@ -796,7 +937,7 @@ private fun CloudLibraryToolbar(
                     },
                 )
             }
-            IconButton(onClick = onRefresh) {
+            IconButton(onClick = onRefresh, modifier = Modifier.nuvioTooltip(stringResource(Res.string.cloud_library_refresh))) {
                 Icon(
                     imageVector = Icons.Rounded.Refresh,
                     contentDescription = stringResource(Res.string.cloud_library_refresh),
@@ -896,7 +1037,7 @@ private fun CloudLibraryRow(
                     )
                 }
                 if (playableCount > 0) {
-                    IconButton(onClick = onClick) {
+                    IconButton(onClick = onClick, modifier = Modifier.nuvioTooltip(stringResource(Res.string.action_play))) {
                         Icon(
                             imageVector = Icons.Rounded.PlayArrow,
                             contentDescription = stringResource(Res.string.action_play),
@@ -941,7 +1082,7 @@ private fun CloudLibraryFilePicker(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                IconButton(onClick = onBack) {
+                IconButton(onClick = onBack, modifier = Modifier.nuvioTooltip(stringResource(Res.string.action_back))) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
                         contentDescription = stringResource(Res.string.action_back),

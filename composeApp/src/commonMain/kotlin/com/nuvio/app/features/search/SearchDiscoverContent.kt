@@ -42,18 +42,22 @@ internal fun LazyListScope.discoverContent(
     fullyWatchedSeriesKeys: Set<String> = emptySet(),
     onPosterClick: ((MetaPreview) -> Unit)? = null,
     onPosterLongClick: ((MetaPreview) -> Unit)? = null,
+    // Desktop pins the filters in the floating search header instead, so they never scroll away.
+    showFilters: Boolean = true,
 ) {
-    item {
-        DiscoverSectionHeader(modifier = Modifier.padding(horizontal = 16.dp))
-    }
-    item {
-        DiscoverFilterRow(
-            state = state,
-            modifier = Modifier.padding(horizontal = 16.dp),
-            onTypeSelected = onTypeSelected,
-            onCatalogSelected = onCatalogSelected,
-            onGenreSelected = onGenreSelected,
-        )
+    if (showFilters) {
+        item {
+            DiscoverSectionHeader(modifier = Modifier.padding(horizontal = 16.dp))
+        }
+        item {
+            DiscoverFilterRow(
+                state = state,
+                modifier = Modifier.padding(horizontal = 16.dp),
+                onTypeSelected = onTypeSelected,
+                onCatalogSelected = onCatalogSelected,
+                onGenreSelected = onGenreSelected,
+            )
+        }
     }
     state.selectedCatalog?.let { selectedCatalog ->
         item {
@@ -125,12 +129,13 @@ private fun DiscoverSectionHeader(modifier: Modifier = Modifier) {
         text = stringResource(Res.string.compose_search_discover_title),
         modifier = modifier,
         style = MaterialTheme.typography.displaySmall,
+        fontWeight = FontWeight.Bold,
         color = MaterialTheme.colorScheme.onBackground,
     )
 }
 
 @Composable
-private fun DiscoverFilterRow(
+internal fun DiscoverFilterRow(
     state: DiscoverUiState,
     onTypeSelected: (String) -> Unit,
     onCatalogSelected: (String) -> Unit,

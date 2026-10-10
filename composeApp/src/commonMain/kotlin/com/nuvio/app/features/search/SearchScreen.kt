@@ -1,5 +1,30 @@
 package com.nuvio.app.features.search
 
+import dev.chrisbanes.haze.hazeEffect
+import dev.chrisbanes.haze.hazeSource
+import dev.chrisbanes.haze.HazeState
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
+import com.nuvio.app.core.ui.NuvioCardDepthSurface
+import com.nuvio.app.core.ui.nuvioCardDepth
+import com.nuvio.app.core.ui.nuvio
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.rounded.History
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.hoverable
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.window.PopupProperties
+import androidx.compose.ui.window.Popup
+import com.nuvio.app.core.ui.nuvioTooltip
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -257,30 +282,108 @@ fun SearchScreen(
             else -> stringResource(Res.string.compose_nav_search)
         }
 
-        NuvioScreen(
-            horizontalPadding = 0.dp,
-            topPadding = if (topChromePadding != null) 0.dp else null,
-            listState = listState,
-            modifier = Modifier.fillMaxSize(),
-        ) {
-        stickyHeader {
-            Box(modifier = Modifier.fillMaxWidth()) {
+        // Desktop: the search field floats over the results like the menu bar, blurring what scrolls
+        // under it, so it is drawn on top of the list instead of inside it.
+        val searchHaze = remember { HazeState() }
+        var searchHeaderHeightPx by remember { mutableStateOf(0) }
+        val desktopActionInset = com.nuvio.app.core.ui.fullscreenActionHorizontalInsetForWidth(maxWidth.value)
+        val searchHeader: @Composable () -> Unit = {
+                Box(modifier = Modifier.fillMaxWidth()) {
                 Box(
                     modifier = Modifier
                         .matchParentSize()
-                        .background(MaterialTheme.colorScheme.background)
-                        .nuvioConsumePointerEvents(),
+                        // Desktop: no strip behind the field; it floats over the results like the
+                        // menu bar does.
+                        .then(
+                            if (isDesktop) {
+                                Modifier
+                            } else {
+                                Modifier.background(MaterialTheme.colorScheme.background).nuvioConsumePointerEvents()
+                            },
+                        ),
                 )
+                if (isDesktop) {
+                    // Top right, where the details page has it.
+                    com.nuvio.app.core.ui.FullscreenActionButton(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(top = 32.dp, end = desktopActionInset),
+                        buttonSize = 48.dp,
+                    )
+                }
                 androidx.compose.foundation.layout.Column(
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    NuvioScreenHeader(
-                        title = headerTitle,
-                        modifier = Modifier.padding(horizontal = 16.dp),
-                        topPadding = topChromePadding,
-                    )
-                    androidx.compose.foundation.layout.Spacer(modifier = Modifier.height(6.dp))
-                    androidx.compose.foundation.layout.Box(modifier = Modifier.padding(horizontal = 16.dp)) {
+                    // Desktop: no page title; the search field itself sits centred under the top bar,
+                        // like a web search page. The header row stays for its fullscreen button.
+                    if (isDesktop) {
+                        androidx.compose.foundation.layout.Spacer(modifier = Modifier.height(DesktopSearchFieldTop))
+                    } else {
+                        NuvioScreenHeader(
+                            title = headerTitle,
+                            modifier = Modifier.padding(horizontal = 16.dp),
+                            topPadding = topChromePadding,
+                        )
+                        androidx.compose.foundation.layout.Spacer(modifier = Modifier.height(6.dp))
+                    }
+                    // Desktop: the field and Discover's filters share one centred row.
+                    androidx.compose.foundation.layout.Row(
+                        modifier = if (isDesktop) {
+                            Modifier.align(Alignment.CenterHorizontally).padding(horizontal = 16.dp)
+                        } else {
+                            Modifier.fillMaxWidth()
+                        },
+                        horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                    androidx.compose.foundation.layout.Box(
+                        modifier = Modifier
+                            .then(if (isDesktop) Modifier else Modifier.padding(horizontal = 16.dp))
+                            .then(
+                                if (isDesktop) {
+                                    Modifier.width(DesktopSearchFieldWidth)
+                                } else {
+                                    Modifier
+                                },
+                            )
+                            .then(
+                                if (isDesktop) {
+                                    Modifier.clip(RoundedCornerShape(percent = 50)).hazeEffect(searchHaze) {
+                                        blurRadius = 24.dp
+                                        noiseFactor = 0f
+                                    }
+                                } else {
+                                    Modifier
+                                },
+                            ),
+                    ) {
+                        // Desktop: recent searches drop down from the field, like a browser's
+                        // suggestions, and close on a click elsewhere; they used to push the whole
+                        // page down and stayed until the field lost focus.
+                        var recentPanelOpen by remember { mutableStateOf(false) }
+                        var fieldWidthPx by remember { mutableStateOf(0) }
+                        LaunchedEffect(isSearchFocused) { if (isSearchFocused) recentPanelOpen = true }
+                        // Every click in the field opens it again, not only the first focus.
+                        val reopenRecent = Modifier.pointerInput(Unit) {
+                            awaitPointerEventScope {
+                                while (true) {
+                                    val e = awaitPointerEvent(PointerEventPass.Initial)
+                                    if (e.type == PointerEventType.Press) recentPanelOpen = true
+                                }
+                            }
+                        }
+                        if (isDesktop && recentPanelOpen && query.isBlank() && recentSearches.isNotEmpty()) {
+                            DesktopRecentSearchesPanel(
+                                recentSearches = recentSearches,
+                                widthPx = fieldWidthPx,
+                                onSearchPress = { recentQuery ->
+                                    query = recentQuery
+                                    recentPanelOpen = false
+                                },
+                                onRemoveSearch = SearchHistoryRepository::removeSearch,
+                                onDismiss = { recentPanelOpen = false },
+                            )
+                        }
                         NuvioInputField(
                             value = query,
                             onValueChange = {
@@ -289,6 +392,8 @@ fun SearchScreen(
                             },
                             placeholder = stringResource(Res.string.compose_search_placeholder),
                             modifier = Modifier
+                                .onSizeChanged { fieldWidthPx = it.width }
+                                .then(if (isDesktop) reopenRecent else Modifier)
                                 .focusRequester(focusRequester)
                                 .onFocusChanged {
                                     isSearchFocused = it.isFocused
@@ -296,7 +401,7 @@ fun SearchScreen(
                                 },
                             trailingContent = if (query.isNotBlank()) {
                                 {
-                                    IconButton(onClick = { query = "" }) {
+                                    IconButton(onClick = { query = "" }, modifier = Modifier.nuvioTooltip(stringResource(Res.string.compose_search_clear))) {
                                         Icon(
                                             imageVector = Icons.Rounded.Close,
                                             contentDescription = stringResource(Res.string.compose_search_clear),
@@ -309,13 +414,52 @@ fun SearchScreen(
                             },
                         )
                     }
+                    // Desktop: Discover's filters live here, beside the field, like the library tabs
+                    // of Jellyfin's Abyss theme; in the list they scrolled out of reach.
+                    if (isDesktop && query.isBlank()) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(percent = 50))
+                                .hazeEffect(searchHaze) {
+                                    blurRadius = 24.dp
+                                    noiseFactor = 0f
+                                }
+                                .background(Color(0xFF1C1C1E).copy(alpha = 0.45f))
+                                .padding(6.dp),
+                        ) {
+                            DiscoverFilterRow(
+                                state = discoverUiState,
+                                onTypeSelected = SearchRepository::selectDiscoverType,
+                                onCatalogSelected = SearchRepository::selectDiscoverCatalog,
+                                onGenreSelected = SearchRepository::selectDiscoverGenre,
+                            )
+                        }
+                    }
+                    }
                     androidx.compose.foundation.layout.Spacer(modifier = Modifier.height(14.dp))
                 }
             }
         }
+        NuvioScreen(
+            horizontalPadding = 0.dp,
+            topPadding = if (topChromePadding != null) 0.dp else null,
+            listState = listState,
+            modifier = Modifier.fillMaxSize().then(if (isDesktop) Modifier.hazeSource(searchHaze) else Modifier),
+        ) {
+        stickyHeader {
+            if (isDesktop) {
+                // Room for the floating search header drawn over the list (below).
+                androidx.compose.foundation.layout.Spacer(
+                    modifier = Modifier.height(with(LocalDensity.current) { searchHeaderHeightPx.toDp() }),
+                )
+            } else {
+                searchHeader()
+            }
+        }
 
         if (query.isBlank()) {
-            if (isSearchFocused && recentSearches.isNotEmpty()) {
+            // Desktop shows recent searches in a panel under the field instead (below).
+            if (!isDesktop && isSearchFocused && recentSearches.isNotEmpty()) {
                 focusRequester.captureFocus()
                 item(key = "recent_searches") {
                     SearchRecentSection(
@@ -333,6 +477,7 @@ fun SearchScreen(
                     onTypeSelected = SearchRepository::selectDiscoverType,
                     onCatalogSelected = SearchRepository::selectDiscoverCatalog,
                     onGenreSelected = SearchRepository::selectDiscoverGenre,
+                    showFilters = !isDesktop,
                     onRetry = {
                         NetworkStatusRepository.requestRefresh(force = true)
                         if (addonsUiState.addons.firstEnabledManifestError() != null) {
@@ -418,6 +563,11 @@ fun SearchScreen(
                         }
                     }
                 }
+            }
+        }
+        if (isDesktop) {
+            Box(modifier = Modifier.fillMaxWidth().onSizeChanged { searchHeaderHeightPx = it.height }) {
+                searchHeader()
             }
         }
     }
@@ -539,7 +689,7 @@ private fun SearchRecentRow(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
-        IconButton(onClick = onRemovePress) {
+        IconButton(onClick = onRemovePress, modifier = Modifier.nuvioTooltip(stringResource(Res.string.compose_search_remove_recent_search))) {
             Icon(
                 imageVector = Icons.Rounded.Close,
                 contentDescription = stringResource(Res.string.compose_search_remove_recent_search),
@@ -548,3 +698,90 @@ private fun SearchRecentRow(
         }
     }
 }
+
+@Composable
+private fun DesktopRecentSearchesPanel(
+    recentSearches: List<String>,
+    widthPx: Int,
+    onSearchPress: (String) -> Unit,
+    onRemoveSearch: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val density = LocalDensity.current
+    val shape = RoundedCornerShape(18.dp)
+    Popup(
+        alignment = Alignment.TopStart,
+        offset = with(density) { IntOffset(0, 64.dp.roundToPx()) },
+        onDismissRequest = onDismiss,
+        properties = PopupProperties(focusable = false),
+    ) {
+        Column(
+            modifier = Modifier
+                .width(with(density) { widthPx.toDp() })
+                .shadow(24.dp, shape)
+                .clip(shape)
+                .background(MaterialTheme.nuvio.colors.surfacePopover)
+                .nuvioCardDepth(shape, NuvioCardDepthSurface.Controls, fallbackBorderAlpha = 0.10f)
+                .padding(vertical = 8.dp),
+        ) {
+            Text(
+                text = stringResource(Res.string.compose_search_recent_searches),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+            )
+            recentSearches.take(DesktopRecentSearchesShown).forEach { recentQuery ->
+                val interaction = remember { MutableInteractionSource() }
+                val hovered by interaction.collectIsHoveredAsState()
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 6.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(if (hovered) Color.White.copy(alpha = 0.06f) else Color.Transparent)
+                        .hoverable(interaction)
+                        .clickable { onSearchPress(recentQuery) }
+                        .padding(start = 10.dp, end = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.History,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(
+                        text = recentQuery,
+                        modifier = Modifier.weight(1f),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onBackground,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    IconButton(
+                        onClick = { onRemoveSearch(recentQuery) },
+                        modifier = Modifier.size(36.dp).nuvioTooltip(stringResource(Res.string.compose_search_remove_recent_search)),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Close,
+                            contentDescription = stringResource(Res.string.compose_search_remove_recent_search),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(18.dp),
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+private const val DesktopRecentSearchesShown = 6
+
+// Just under the menu bar.
+private val DesktopSearchFieldTop = 68.dp
+
+private val DesktopSearchFieldWidth = 440.dp
+
+private val DesktopSearchFieldMinWidth = 640.dp
+private const val DesktopSearchFieldWidthFraction = 0.5f
