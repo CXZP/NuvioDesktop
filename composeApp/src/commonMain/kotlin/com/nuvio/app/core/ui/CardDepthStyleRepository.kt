@@ -18,6 +18,8 @@ enum class NuvioCardDepthSurface {
     EpisodeCards,
     Cast,
     Trailers,
+    // Buttons, the menu bar, menus and panels.
+    Controls,
 }
 
 @Serializable
@@ -31,6 +33,7 @@ private data class StoredCardDepthStylePreferences(
     val episodeCardsEnabled: Boolean = true,
     val castEnabled: Boolean = true,
     val trailersEnabled: Boolean = true,
+    val controlsEnabled: Boolean = true,
 )
 
 data class CardDepthStyleUiState(
@@ -43,9 +46,12 @@ data class CardDepthStyleUiState(
     val episodeCardsEnabled: Boolean = true,
     val castEnabled: Boolean = true,
     val trailersEnabled: Boolean = true,
+    val controlsEnabled: Boolean = true,
 ) {
+    // Glass controls are their own setting (Layout > Display), not part of the card effect: they
+    // only borrow its edge and sheen strengths.
     fun isEnabledFor(surface: NuvioCardDepthSurface): Boolean =
-        enabled && isSurfaceEnabled(surface)
+        if (surface == NuvioCardDepthSurface.Controls) controlsEnabled else enabled && isSurfaceEnabled(surface)
 
     fun isSurfaceEnabled(surface: NuvioCardDepthSurface): Boolean =
         when (surface) {
@@ -54,6 +60,7 @@ data class CardDepthStyleUiState(
             NuvioCardDepthSurface.EpisodeCards -> episodeCardsEnabled
             NuvioCardDepthSurface.Cast -> castEnabled
             NuvioCardDepthSurface.Trailers -> trailersEnabled
+            NuvioCardDepthSurface.Controls -> controlsEnabled
         }
 }
 
@@ -106,6 +113,7 @@ object CardDepthStyleRepository {
                 NuvioCardDepthSurface.EpisodeCards -> it.copy(episodeCardsEnabled = enabled)
                 NuvioCardDepthSurface.Cast -> it.copy(castEnabled = enabled)
                 NuvioCardDepthSurface.Trailers -> it.copy(trailersEnabled = enabled)
+                NuvioCardDepthSurface.Controls -> it.copy(controlsEnabled = enabled)
             }
         }
     }
@@ -149,6 +157,7 @@ object CardDepthStyleRepository {
                 episodeCardsEnabled = stored.episodeCardsEnabled,
                 castEnabled = stored.castEnabled,
                 trailersEnabled = stored.trailersEnabled,
+                controlsEnabled = stored.controlsEnabled,
             )
         } else {
             CardDepthStyleUiState()
@@ -168,6 +177,7 @@ object CardDepthStyleRepository {
                     episodeCardsEnabled = _uiState.value.episodeCardsEnabled,
                     castEnabled = _uiState.value.castEnabled,
                     trailersEnabled = _uiState.value.trailersEnabled,
+                    controlsEnabled = _uiState.value.controlsEnabled,
                 ),
             ),
         )

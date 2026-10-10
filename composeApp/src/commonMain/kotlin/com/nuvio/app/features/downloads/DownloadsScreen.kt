@@ -1,5 +1,6 @@
 package com.nuvio.app.features.downloads
 
+import com.nuvio.app.core.ui.nuvioTooltip
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -399,7 +400,7 @@ private fun DownloadRow(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     when (item.status) {
                         DownloadStatus.Downloading -> {
-                            IconButton(onClick = onPause) {
+                            IconButton(onClick = onPause, modifier = Modifier.nuvioTooltip(stringResource(Res.string.compose_action_pause))) {
                                 Icon(
                                     imageVector = Icons.Rounded.Pause,
                                     contentDescription = stringResource(Res.string.compose_action_pause),
@@ -407,7 +408,7 @@ private fun DownloadRow(
                             }
                         }
                         DownloadStatus.Paused -> {
-                            IconButton(onClick = onResume) {
+                            IconButton(onClick = onResume, modifier = Modifier.nuvioTooltip(stringResource(Res.string.action_resume))) {
                                 Icon(
                                     imageVector = Icons.Rounded.PlayArrow,
                                     contentDescription = stringResource(Res.string.action_resume),
@@ -415,7 +416,7 @@ private fun DownloadRow(
                             }
                         }
                         DownloadStatus.Failed -> {
-                            IconButton(onClick = onRetry) {
+                            IconButton(onClick = onRetry, modifier = Modifier.nuvioTooltip(stringResource(Res.string.action_retry))) {
                                 Icon(
                                     imageVector = Icons.Rounded.Refresh,
                                     contentDescription = stringResource(Res.string.action_retry),
@@ -423,7 +424,7 @@ private fun DownloadRow(
                             }
                         }
                         DownloadStatus.Completed -> {
-                            IconButton(onClick = onOpen) {
+                            IconButton(onClick = onOpen, modifier = Modifier.nuvioTooltip(stringResource(Res.string.action_play))) {
                                 Icon(
                                     imageVector = Icons.Rounded.PlayArrow,
                                     contentDescription = stringResource(Res.string.action_play),
@@ -431,7 +432,7 @@ private fun DownloadRow(
                             }
                         }
                     }
-                    IconButton(onClick = onDelete) {
+                    IconButton(onClick = onDelete, modifier = Modifier.nuvioTooltip(stringResource(Res.string.action_delete))) {
                         Icon(
                             imageVector = Icons.Rounded.Delete,
                             contentDescription = stringResource(Res.string.action_delete),

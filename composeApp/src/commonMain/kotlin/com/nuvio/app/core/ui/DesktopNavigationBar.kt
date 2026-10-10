@@ -1,7 +1,7 @@
 package com.nuvio.app.core.ui
 
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -31,6 +31,10 @@ import com.nuvio.app.features.settings.NavBarStyle
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeEffect
 
+// Damped like iOS: quick to start, long soft settle, so the bar glides open on hover.
+private val DesktopNavigationMotion = tween<Float>(durationMillis = 450, easing = CubicBezierEasing(0.32f, 0.72f, 0f, 1f))
+private val DesktopNavigationColorMotion = tween<Color>(durationMillis = 450, easing = CubicBezierEasing(0.32f, 0.72f, 0f, 1f))
+
 @Composable
 internal fun DesktopNavigationBar(
     items: List<FloatingNavigationItem>,
@@ -55,17 +59,17 @@ internal fun DesktopNavigationBar(
         ((isHomeSelected || isSettingsSelected) && isScrolledAwayFromTop)
     val labelFraction by animateFloatAsState(
         targetValue = desktopNavigationLabelFraction(navBarStyle, isHomeSelected, isHeroEnabled, isHovered, profileSwitcherOpen, isScrolledAwayFromTop),
-        animationSpec = tween(320, easing = FastOutSlowInEasing),
+        animationSpec = DesktopNavigationMotion,
         label = "desktop_nav_labels",
     )
     val surfaceColor by animateColorAsState(
         targetValue = if (isFrosted) Color(0xFF1C1C1E).copy(alpha = 0.30f) else Color(0xFF0F0F11).copy(alpha = 0.20f),
-        animationSpec = tween(320, easing = FastOutSlowInEasing),
+        animationSpec = DesktopNavigationColorMotion,
         label = "desktop_nav_surface",
     )
     val sheenAlpha by animateFloatAsState(
         targetValue = if (isFrosted) 1f else 0f,
-        animationSpec = tween(320, easing = FastOutSlowInEasing),
+        animationSpec = DesktopNavigationMotion,
         label = "desktop_nav_sheen",
     )
     val glowStrength by animateFloatAsState(
@@ -96,9 +100,10 @@ internal fun DesktopNavigationBar(
                 modifier = Modifier.matchParentSize()
                     .clip(RoundedCornerShape(50))
                     .then(
-                        if (isFrosted && hazeState != null) {
+                        // Always frosted, like a glass bar; hovering only brightens it.
+                        if (hazeState != null) {
                             Modifier.hazeEffect(state = hazeState) {
-                                blurRadius = 14.dp
+                                blurRadius = 24.dp
                                 noiseFactor = 0f
                             }
                         } else {
@@ -114,7 +119,8 @@ internal fun DesktopNavigationBar(
                                 Color.Transparent,
                             ),
                         ),
-                    ),
+                    )
+                    .nuvioCardDepth(RoundedCornerShape(50), NuvioCardDepthSurface.Controls, fallbackBorderAlpha = 0.10f),
             )
         }
     }

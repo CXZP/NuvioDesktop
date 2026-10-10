@@ -1,5 +1,7 @@
 package com.nuvio.app.features.library
 
+import com.nuvio.app.core.ui.nuvioFieldColors
+import com.nuvio.app.core.ui.nuvioFieldShape
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -62,8 +64,8 @@ internal fun LibraryListEditor(
             singleLine = true,
             enabled = !state.isPending,
             modifier = Modifier.fillMaxWidth(),
-            shape = tokens.shapes.compactCard,
-            colors = inputColors,
+            shape = nuvioFieldShape(singleLine = true, fallback = tokens.shapes.compactCard),
+            colors = nuvioFieldColors(inputColors),
             keyboardOptions = KeyboardOptions(imeAction = if (capabilities.supportsDescription) ImeAction.Next else ImeAction.Done),
             keyboardActions = KeyboardActions(onDone = { if (!state.isPending && state.name.isNotBlank()) onSubmit() }),
         )
@@ -74,8 +76,8 @@ internal fun LibraryListEditor(
                 label = { Text(stringResource(Res.string.library_list_description)) },
                 enabled = !state.isPending,
                 modifier = Modifier.fillMaxWidth(),
-                shape = tokens.shapes.compactCard,
-                colors = inputColors,
+                shape = nuvioFieldShape(singleLine = false, fallback = tokens.shapes.compactCard),
+                colors = nuvioFieldColors(inputColors),
                 minLines = 2,
                 maxLines = 4,
             )

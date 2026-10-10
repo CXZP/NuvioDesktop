@@ -2,16 +2,15 @@ package com.nuvio.app.core.ui.jelly
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.constrainWidth
 import androidx.compose.ui.unit.constrainHeight
 import androidx.compose.ui.unit.Dp
-import kotlin.math.roundToInt
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
@@ -47,6 +46,14 @@ import com.nuvio.app.core.ui.themePalette
 import com.nuvio.app.core.ui.visualNavIndex
 import org.jetbrains.compose.resources.painterResource
 import kotlin.math.abs
+import kotlin.math.ceil
+import kotlin.math.floor
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Outline
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.layout.Placeable
+import androidx.compose.ui.unit.Density
 
 @Composable
 internal fun JellyTabRow(
@@ -65,13 +72,12 @@ internal fun JellyTabRow(
     val iconModifier = Modifier.size(if (horizontalLabels) iconSize - 10.dp else iconSize)
         .then(if (active && !horizontalLabels) Modifier.gradientMask(palette.accentBrush()) else Modifier)
     val iconTint = if (active) Color.White else color
-    Row(
-        modifier = modifier.padding(4.dp).clearAndSetSemantics {},
-        verticalAlignment = Alignment.CenterVertically,
+    JellyTabCells(
+        modifier = modifier.padding(vertical = 4.dp).clearAndSetSemantics {},
     ) {
         items.forEach { item ->
             Box(
-                Modifier.weight(1f).fillMaxHeight().graphicsLayer {
+                Modifier.fillMaxHeight().graphicsLayer {
                     val scale = if (active) motion.frame.contentScale else 1f
                     scaleX = scale
                     scaleY = scale
@@ -100,7 +106,7 @@ internal fun JellyTabTargets(
     iconSize: Dp = if (compactSize) 24.dp else 28.dp,
 ) {
     val isRtl = LocalLayoutDirection.current == LayoutDirection.Rtl
-    Row(modifier.padding(horizontal = 4.dp).selectableGroup()) {
+    JellyTabCells(modifier.selectableGroup()) {
         items.forEachIndexed { index, item ->
             val visualIndex = visualNavIndex(index, items.size, isRtl)
             val onClick = {
@@ -108,7 +114,7 @@ internal fun JellyTabTargets(
                 item.onClick()
             }
             Box(
-                modifier = Modifier.weight(1f).fillMaxHeight()
+                modifier = Modifier.fillMaxHeight()
                     .selectable(
                         selected = item.selected,
                         role = Role.Tab,
@@ -186,6 +192,10 @@ private fun JellyTabContent(
         )
     }
     if (horizontal) {
+        // Fills the tab and places the icon and label at exact (fractional) positions. The label
+        // is measured at its own width, not at the space the tab has right now: while the bar
+        // widened, that space grew every frame, the label switched between ellipsized lengths, and
+        // with whole-pixel centring on top the icons jumped back and forth.
         Layout(
             modifier = Modifier.padding(horizontal = 8.dp).clipToBounds(),
             content = {
@@ -194,15 +204,25 @@ private fun JellyTabContent(
             },
         ) { measurables, constraints ->
             val iconPlaceable = measurables[0].measure(constraints.copy(minWidth = 0, minHeight = 0))
-            val gap = 6.dp.roundToPx()
+            val gap = 6.dp.toPx()
             val labelPlaceable = measurables[1].measure(
-                constraints.copy(minWidth = 0, minHeight = 0, maxWidth = (constraints.maxWidth - iconPlaceable.width - gap).coerceAtLeast(0)),
+                Constraints(maxWidth = JellyLabelMaxWidth.roundToPx(), maxHeight = constraints.maxHeight),
             )
-            val width = iconPlaceable.width + ((labelPlaceable.width + gap) * labelFraction).roundToInt()
-            val height = maxOf(iconPlaceable.height, labelPlaceable.height)
-            layout(constraints.constrainWidth(width), constraints.constrainHeight(height)) {
-                iconPlaceable.placeRelative(0, (height - iconPlaceable.height) / 2)
-                labelPlaceable.placeRelative(iconPlaceable.width + gap, (height - labelPlaceable.height) / 2)
+            val revealedLabel = (labelPlaceable.width + gap) * labelFraction
+            val contentWidth = iconPlaceable.width + revealedLabel
+            val width = constraints.maxWidth
+            val height = constraints.constrainHeight(maxOf(iconPlaceable.height, labelPlaceable.height))
+            val iconX = (width - contentWidth) / 2f
+            layout(width, height) {
+                placeFractional(iconPlaceable, iconX, (height - iconPlaceable.height) / 2, width, layoutDirection)
+                placeFractional(
+                    labelPlaceable,
+                    iconX + iconPlaceable.width + gap,
+                    (height - labelPlaceable.height) / 2,
+                    width,
+                    layoutDirection,
+                    revealWidth = (revealedLabel - gap).coerceAtLeast(0f),
+                )
             }
         }
     } else {
@@ -212,5 +232,59 @@ private fun JellyTabContent(
                 labelContent()
             }
         }
+    }
+}
+
+private val JellyLabelMaxWidth = 120.dp
+
+// Tabs at their exact share of the bar. Whole-pixel tab widths and positions rounded differently
+// from one frame to the next while the bar changed width, which made the icons shake.
+@Composable
+private fun JellyTabCells(modifier: Modifier, content: @Composable () -> Unit) {
+    Layout(content = content, modifier = modifier) { measurables, constraints ->
+        val inset = 4.dp.toPx()
+        val tabWidth = ((constraints.maxWidth - 2 * inset) / measurables.size.coerceAtLeast(1)).coerceAtLeast(0f)
+        val cellWidth = ceil(tabWidth).toInt()
+        val height = constraints.maxHeight
+        val placeables = measurables.map { it.measure(Constraints.fixed(cellWidth, height)) }
+        layout(constraints.maxWidth, height) {
+            placeables.forEachIndexed { index, placeable ->
+                placeFractional(placeable, inset + index * tabWidth, 0, constraints.maxWidth, layoutDirection)
+            }
+        }
+    }
+}
+
+// Places at a fractional x: whole pixels through layout, the rest as a layer offset, mirrored for
+// right-to-left like placeRelative. [revealWidth] clips the placeable to that much of its leading side.
+private fun Placeable.PlacementScope.placeFractional(
+    placeable: Placeable,
+    x: Float,
+    y: Int,
+    parentWidth: Int,
+    direction: LayoutDirection,
+    revealWidth: Float? = null,
+) {
+    val left = if (direction == LayoutDirection.Rtl) parentWidth - x - placeable.width else x
+    val whole = floor(left)
+    placeable.placeWithLayer(whole.toInt(), y) {
+        translationX = left - whole
+        if (revealWidth != null) {
+            clip = true
+            shape = LeadingRevealShape(revealWidth)
+        }
+    }
+}
+
+private class LeadingRevealShape(private val width: Float) : Shape {
+    override fun createOutline(size: Size, layoutDirection: LayoutDirection, density: Density): Outline {
+        val visible = width.coerceIn(0f, size.width)
+        return Outline.Rectangle(
+            if (layoutDirection == LayoutDirection.Rtl) {
+                Rect(size.width - visible, 0f, size.width, size.height)
+            } else {
+                Rect(0f, 0f, visible, size.height)
+            },
+        )
     }
 }

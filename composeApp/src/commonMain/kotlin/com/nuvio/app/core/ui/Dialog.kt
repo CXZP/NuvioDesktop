@@ -1,5 +1,14 @@
 package com.nuvio.app.core.ui
 
+import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.shape.RoundedCornerShape
+import com.nuvio.app.isDesktop
+import androidx.compose.ui.graphics.Color
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -57,7 +66,8 @@ fun DialogSurface(
         Surface(
             modifier = modifier
                 .fillMaxWidth()
-                .widthIn(max = tokens.components.dialogMaxWidth),
+                .widthIn(max = tokens.components.dialogMaxWidth)
+                .then(if (isDesktop) Modifier.nuvioCardDepth(tokens.shapes.dialog, NuvioCardDepthSurface.Controls) else Modifier),
             shape = tokens.shapes.dialog,
             color = tokens.colors.surfaceDialog,
             contentColor = tokens.colors.textPrimary,
@@ -100,6 +110,25 @@ fun DialogButtons(
     ) { measurables, constraints ->
         val gap = NuvioTokens.Space.s10.roundToPx()
         val width = constraints.maxWidth
+        // Desktop: buttons sized to their labels and lined up on the right, like a macOS dialog,
+        // not bars across the whole dialog.
+        if (isDesktop) {
+            val minWidth = 96.dp.roundToPx()
+            val placeables = measurables.map {
+                val w = it.maxIntrinsicWidth(constraints.maxHeight).coerceIn(minWidth, width)
+                it.measure(Constraints.fixedWidth(w))
+            }
+            val total = placeables.sumOf { it.width } + totalGapFor(placeables.size, gap)
+            if (total <= width) {
+                return@Layout layout(width, placeables.maxOfOrNull { it.height } ?: 0) {
+                    var x = width - total
+                    placeables.forEach { placeable ->
+                        placeable.placeRelative(x, 0)
+                        x += placeable.width + gap
+                    }
+                }
+            }
+        }
         val totalGap = gap * (measurables.size - 1).coerceAtLeast(0)
         val itemWidth = (width - totalGap) / measurables.size.coerceAtLeast(1)
         if (measurables.all { it.maxIntrinsicWidth(constraints.maxHeight) <= itemWidth }) {
@@ -138,18 +167,39 @@ fun DialogButton(
         DialogButtonStyle.Destructive -> tokens.colors.danger
     }
     val contentColor = if (style == DialogButtonStyle.Secondary) tokens.colors.textPrimary else tokens.colors.onAccent
+    // Desktop: glass capsules like NuvioPrimaryButton; the primary one a little brighter.
+    val desktopContainer = when (style) {
+        DialogButtonStyle.Primary -> Color.White.copy(alpha = 0.18f)
+        DialogButtonStyle.Secondary -> Color.White.copy(alpha = 0.08f)
+        DialogButtonStyle.Destructive -> tokens.colors.danger.copy(alpha = 0.85f)
+    }
     Button(
         onClick = onClick,
-        modifier = modifier.heightIn(min = NuvioTokens.Space.s48),
+        modifier = if (isDesktop) {
+            modifier
+                .heightIn(min = 44.dp)
+                .nuvioCardDepth(RoundedCornerShape(percent = 50), NuvioCardDepthSurface.Controls)
+        } else {
+            modifier.heightIn(min = NuvioTokens.Space.s48)
+        },
         enabled = enabled && !loading,
-        shape = tokens.shapes.button,
-        colors = ButtonDefaults.buttonColors(
-            containerColor = containerColor,
-            contentColor = contentColor,
-            disabledContainerColor = containerColor.copy(alpha = containerColor.alpha * tokens.opacity.disabled),
-            disabledContentColor = contentColor.copy(alpha = tokens.opacity.disabled),
-        ),
-        contentPadding = PaddingValues(horizontal = NuvioTokens.Space.s16),
+        shape = if (isDesktop) RoundedCornerShape(percent = 50) else tokens.shapes.button,
+        colors = if (isDesktop) {
+            ButtonDefaults.buttonColors(
+                containerColor = desktopContainer,
+                contentColor = Color.White,
+                disabledContainerColor = Color.White.copy(alpha = 0.05f),
+                disabledContentColor = Color.White.copy(alpha = 0.32f),
+            )
+        } else {
+            ButtonDefaults.buttonColors(
+                containerColor = containerColor,
+                contentColor = contentColor,
+                disabledContainerColor = containerColor.copy(alpha = containerColor.alpha * tokens.opacity.disabled),
+                disabledContentColor = contentColor.copy(alpha = tokens.opacity.disabled),
+            )
+        },
+        contentPadding = PaddingValues(horizontal = if (isDesktop) 22.dp else NuvioTokens.Space.s16),
     ) {
         if (loading) {
             NuvioLoadingIndicator(
@@ -179,17 +229,23 @@ fun DialogOption(
     leading: (@Composable () -> Unit)? = null,
 ) {
     val tokens = MaterialTheme.nuvio
+    // Desktop: the rows of a list, not a stack of filled boxes. Only the selected row is filled,
+    // and the row under the pointer gets a light highlight.
+    val interaction = remember { MutableInteractionSource() }
+    val hovered by interaction.collectIsHoveredAsState()
     Row(
         modifier = modifier
             .fillMaxWidth()
             .clip(tokens.shapes.compactCard)
             .background(
-                if (selected) {
-                    tokens.colors.accent.copy(alpha = tokens.opacity.selected)
-                } else {
-                    tokens.colors.textPrimary.copy(alpha = tokens.opacity.subtle)
+                when {
+                    selected -> tokens.colors.accent.copy(alpha = tokens.opacity.selected)
+                    !isDesktop -> tokens.colors.textPrimary.copy(alpha = tokens.opacity.subtle)
+                    hovered -> tokens.colors.textPrimary.copy(alpha = 0.06f)
+                    else -> Color.Transparent
                 },
             )
+            .hoverable(interaction)
             .selectable(selected = selected, enabled = enabled, role = role, onClick = onClick)
             .padding(horizontal = NuvioTokens.Space.s14, vertical = NuvioTokens.Space.s12),
         horizontalArrangement = Arrangement.spacedBy(NuvioTokens.Space.s12),
@@ -224,3 +280,5 @@ fun DialogOption(
         }
     }
 }
+
+private fun totalGapFor(count: Int, gap: Int): Int = gap * (count - 1).coerceAtLeast(0)

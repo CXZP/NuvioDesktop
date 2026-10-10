@@ -1,5 +1,9 @@
 package com.nuvio.app.features.library
 
+import androidx.compose.ui.unit.dp
+import com.nuvio.app.core.ui.desktopGlassCircle
+import androidx.compose.ui.Modifier
+import com.nuvio.app.core.ui.nuvioTooltip
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material3.Icon
@@ -34,7 +38,7 @@ internal fun LibraryListManagementButton() {
     if (context == null) return
     val provider = context.source.providerId?.let(TrackingProviderRegistry::libraryProvider) ?: return
     val manager = provider.listManager ?: return
-    IconButton(onClick = controller::create) {
+    IconButton(onClick = controller::create, modifier = Modifier.desktopGlassCircle(48.dp).nuvioTooltip(stringResource(Res.string.library_create_list))) {
         Icon(
             imageVector = Icons.Rounded.Add,
             contentDescription = stringResource(Res.string.library_create_list),

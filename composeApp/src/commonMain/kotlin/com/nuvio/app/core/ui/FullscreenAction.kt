@@ -1,5 +1,6 @@
 package com.nuvio.app.core.ui
 
+import com.nuvio.app.isDesktop
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -59,9 +60,11 @@ internal fun FullscreenActionButton(
 
     Box(
         modifier = modifier
+            .nuvioTooltip(label)
             .size(buttonSize)
+            .then(if (isDesktop) Modifier.nuvioCardDepth(CircleShape, NuvioCardDepthSurface.Controls, fallbackBorderAlpha = 0.14f) else Modifier)
             .clip(CircleShape)
-            .background(containerColor)
+            .background(if (isDesktop) DesktopGlassButtonColor else containerColor)
             .clickable(
                 enabled = enabled,
                 role = Role.Button,

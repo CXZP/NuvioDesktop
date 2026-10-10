@@ -1,5 +1,6 @@
 package com.nuvio.app.features.player.skip
 
+import com.nuvio.app.core.ui.nuvioTooltip
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -107,7 +108,7 @@ fun SubmitIntroDialog(
                     color = MaterialTheme.colorScheme.onSurface,
                     fontWeight = FontWeight.Bold,
                 )
-                IconButton(onClick = onDismiss) {
+                IconButton(onClick = onDismiss, modifier = Modifier.nuvioTooltip(stringResource(Res.string.action_close))) {
                     Icon(
                         Icons.Rounded.Close,
                         contentDescription = stringResource(Res.string.action_close),

@@ -1,5 +1,9 @@
 package com.nuvio.app.features.collection
 
+import com.nuvio.app.core.ui.nuvioFieldColors
+import com.nuvio.app.core.ui.nuvioFieldShape
+import com.nuvio.app.core.ui.desktopGlassCircle
+import com.nuvio.app.core.ui.nuvioTooltip
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -47,6 +51,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.nuvio.app.core.ui.nuvio
 import androidx.compose.animation.core.animateDpAsState
 import com.nuvio.app.core.ui.DialogButton
 import com.nuvio.app.core.ui.DialogButtons
@@ -70,6 +75,8 @@ import sh.calvin.reorderable.rememberReorderableLazyListState
 fun CollectionManagementScreen(
     onBack: () -> Unit,
     onNavigateToEditor: (String?) -> Unit,
+    // Shown inside Settings on desktop: the settings page header and margins instead of a full screen.
+    embedded: Boolean = false,
 ) {
     val collections by CollectionRepository.collections.collectAsState()
     val clipboardManager = LocalClipboardManager.current
@@ -79,13 +86,18 @@ fun CollectionManagementScreen(
     var showDeleteConfirm by remember { mutableStateOf<String?>(null) }
     var showCopyError by remember { mutableStateOf(false) }
 
-    NuvioScreen {
+    NuvioScreen(
+        horizontalPadding = if (embedded) 40.dp else MaterialTheme.nuvio.spacing.screenHorizontal,
+        topPadding = if (embedded) 8.dp else null,
+    ) {
         stickyHeader {
             NuvioScreenHeader(
                 title = stringResource(Res.string.collections_header),
                 onBack = onBack,
+                includeStatusBarPadding = !embedded,
+                topPadding = if (embedded) 0.dp else null,
             ) {
-                IconButton(onClick = {
+                IconButton(modifier = Modifier.desktopGlassCircle().nuvioTooltip(stringResource(Res.string.collections_copy_json)), onClick = {
                     val json = CollectionRepository.exportToJson()
                     showCopyError = runCatching {
                         clipboardManager.setText(AnnotatedString(json))
@@ -97,7 +109,7 @@ fun CollectionManagementScreen(
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                IconButton(onClick = { showImportDialog = true }) {
+                IconButton(onClick = { showImportDialog = true }, modifier = Modifier.desktopGlassCircle().nuvioTooltip(stringResource(Res.string.collections_import))) {
                     Icon(
                         imageVector = Icons.Rounded.ContentPaste,
                         contentDescription = stringResource(Res.string.collections_import),
@@ -393,17 +405,17 @@ private fun ImportDialog(
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
             keyboardActions = KeyboardActions(onDone = { onConfirm() }),
             maxLines = 10,
-            shape = RoundedCornerShape(14.dp),
+            shape = nuvioFieldShape(singleLine = false, fallback = RoundedCornerShape(14.dp)),
             textStyle = MaterialTheme.typography.bodyLarge.copy(
                 color = MaterialTheme.colorScheme.onSurface,
             ),
-            colors = OutlinedTextFieldDefaults.colors(
+            colors = nuvioFieldColors(OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = MaterialTheme.colorScheme.outline,
                 unfocusedBorderColor = MaterialTheme.colorScheme.outline,
                 focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
                 unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
                 cursorColor = MaterialTheme.colorScheme.primary,
-            ),
+            )),
         )
         DialogButtons {
             DialogButton(

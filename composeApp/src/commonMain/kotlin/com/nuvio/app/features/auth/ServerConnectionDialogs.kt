@@ -1,5 +1,8 @@
 package com.nuvio.app.features.auth
 
+import com.nuvio.app.core.ui.nuvioFieldColors
+import com.nuvio.app.core.ui.nuvioFieldShape
+import com.nuvio.app.core.ui.nuvioTooltip
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -102,7 +105,7 @@ internal fun ServerConnectionMenu(
 ) {
     var expanded by remember { mutableStateOf(false) }
     Column(modifier = modifier) {
-        IconButton(onClick = { expanded = true }) {
+        IconButton(onClick = { expanded = true }, modifier = Modifier.nuvioTooltip(stringResource(Res.string.server_menu_content_description))) {
             Icon(
                 imageVector = Icons.Rounded.MoreVert,
                 contentDescription = stringResource(Res.string.server_menu_content_description),
@@ -192,8 +195,8 @@ internal fun ServerConnectionSheet(
                 keyboardActions = KeyboardActions(
                     onDone = { if (url.isNotBlank()) onDiscover(url) },
                 ),
-                shape = tokens.shapes.button,
-                colors = OutlinedTextFieldDefaults.colors(
+                shape = nuvioFieldShape(singleLine = true, fallback = tokens.shapes.button),
+                colors = nuvioFieldColors(OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = tokens.colors.borderFocus,
                     unfocusedBorderColor = tokens.colors.borderDefault,
                     focusedTextColor = tokens.colors.textPrimary,
@@ -201,7 +204,7 @@ internal fun ServerConnectionSheet(
                     focusedLabelColor = tokens.colors.textSecondary,
                     unfocusedLabelColor = tokens.colors.textMuted,
                     cursorColor = tokens.colors.accent,
-                ),
+                )),
             )
             if (error != null) {
                 Spacer(modifier = Modifier.height(NuvioTokens.Space.s10))

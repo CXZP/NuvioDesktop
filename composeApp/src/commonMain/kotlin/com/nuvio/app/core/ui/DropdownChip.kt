@@ -1,5 +1,6 @@
 package com.nuvio.app.core.ui
 
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -60,9 +61,11 @@ fun NuvioDropdownChip(
     val coroutineScope = rememberCoroutineScope()
 
     Box(modifier = modifier) {
+        // Desktop: a capsule, the same as the other dropdown buttons (Trailers).
+        val chipShape = if (isDesktop) RoundedCornerShape(percent = 50) else tokens.shapes.compactCard
         Row(
             modifier = Modifier
-                .clip(tokens.shapes.compactCard)
+                .clip(chipShape)
                 .background(tokens.colors.surface)
                 .then(
                     if (enabled) {
@@ -91,32 +94,16 @@ fun NuvioDropdownChip(
         }
 
         if (isDesktop) {
-            DropdownMenu(
+            // The app's one menu style (Menu/MenuItem), shared with the Trailers picker.
+            Menu(
                 expanded = isSheetVisible,
                 onDismissRequest = { isSheetVisible = false },
-                modifier = Modifier.widthIn(min = 180.dp, max = 360.dp),
-                containerColor = tokens.colors.surfacePopover,
-                shape = tokens.shapes.compactCard,
+                modifier = Modifier.widthIn(max = 360.dp),
             ) {
                 options.forEach { option ->
-                    DropdownMenuItem(
-                        text = {
-                            Text(
-                                text = option.label,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        },
-                        trailingIcon = {
-                            if (option.key == selectedKey) {
-                                Icon(
-                                    imageVector = Icons.Rounded.Check,
-                                    contentDescription = null,
-                                    tint = tokens.colors.accent,
-                                    modifier = Modifier.size(tokens.icons.md),
-                                )
-                            }
-                        },
+                    MenuItem(
+                        text = option.label,
+                        selected = option.key == selectedKey,
                         onClick = {
                             onSelected(option)
                             isSheetVisible = false

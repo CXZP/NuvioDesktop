@@ -1,5 +1,6 @@
 package com.nuvio.app.features.collection
 
+import com.nuvio.app.core.ui.nuvioTooltip
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -604,7 +605,7 @@ private fun FolderListItem(
                 )
             }
             Spacer(modifier = Modifier.weight(1f))
-            IconButton(onClick = onEdit, modifier = Modifier.size(36.dp)) {
+            IconButton(onClick = onEdit, modifier = Modifier.size(36.dp).nuvioTooltip(stringResource(Res.string.action_edit))) {
                 Icon(
                     imageVector = Icons.Rounded.Edit,
                     contentDescription = stringResource(Res.string.action_edit),
@@ -612,7 +613,7 @@ private fun FolderListItem(
                     tint = MaterialTheme.colorScheme.primary,
                 )
             }
-            IconButton(onClick = onDelete, modifier = Modifier.size(36.dp)) {
+            IconButton(onClick = onDelete, modifier = Modifier.size(36.dp).nuvioTooltip(stringResource(Res.string.action_delete))) {
                 Icon(
                     imageVector = Icons.Rounded.Delete,
                     contentDescription = stringResource(Res.string.action_delete),

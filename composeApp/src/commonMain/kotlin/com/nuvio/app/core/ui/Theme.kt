@@ -126,7 +126,20 @@ private val NuvioTypography: Typography
             fontWeight = FontWeight.SemiBold,
             letterSpacing = NuvioTokens.LetterSpacing.label,
         ),
-    )
+    ).withFontFamily(JetBrainsSans)
+
+// The styles not set above (titleSmall, labelSmall, bodySmall, ...) kept Material's default font,
+// so text such as the hero's View Details button and the "2h 20m left" badges used the platform
+// font instead of the app's.
+private fun Typography.withFontFamily(family: FontFamily): Typography = copy(
+    displayMedium = displayMedium.copy(fontFamily = family),
+    displaySmall = displaySmall.copy(fontFamily = family),
+    headlineMedium = headlineMedium.copy(fontFamily = family),
+    headlineSmall = headlineSmall.copy(fontFamily = family),
+    titleSmall = titleSmall.copy(fontFamily = family),
+    bodySmall = bodySmall.copy(fontFamily = family),
+    labelSmall = labelSmall.copy(fontFamily = family),
+)
 
 private val NuvioTypeTokens: NuvioTypeScale
     @Composable

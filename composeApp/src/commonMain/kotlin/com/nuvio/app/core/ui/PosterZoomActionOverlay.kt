@@ -1,5 +1,12 @@
 package com.nuvio.app.core.ui
 
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.border
+import androidx.compose.ui.draw.clip
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.ui.draw.shadow
+import com.nuvio.app.isDesktop
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
@@ -172,6 +179,19 @@ fun NuvioPosterZoomActionOverlay(
     onDismissed: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    if (isDesktop) {
+        // Desktop already shows the poster large in the hover preview; a second, bigger copy of it
+        // in the middle of the screen repeated that. Show just the actions, next to the poster.
+        DesktopPosterContextMenu(
+            title = title,
+            subtitle = subtitle,
+            anchor = anchor,
+            actions = actions,
+            onDismissed = onDismissed,
+            modifier = modifier,
+        )
+        return
+    }
     val tokens = MaterialTheme.nuvio
     val previewShape = RoundedCornerShape(PosterZoomFinalCornerRadius)
     val hapticFeedback = LocalHapticFeedback.current
@@ -271,7 +291,12 @@ fun NuvioPosterZoomActionOverlay(
             ?: 0.675f
         val aspect = anchorAspect.coerceIn(0.35f, 2.4f)
         val maxPosterWidth = if (aspect >= 1f) maxWidth * 0.8f else maxWidth * 0.6f
-        val posterHeight = min(maxPosterWidth / aspect, maxHeight * 0.44f)
+        val anchorHeight = anchor?.boundsInRoot?.height?.let { with(LocalDensity.current) { it.toDp() } }
+        // Desktop: no bigger than one and a half times the card. On a large window the card filled
+        // most of the screen, far more than the menu needs.
+        val posterHeight = min(maxPosterWidth / aspect, maxHeight * 0.44f).let { height ->
+            if (isDesktop && anchorHeight != null) min(height, anchorHeight * 1.5f) else height
+        }
         val posterWidth = posterHeight * aspect
         val menuWidth = min(280.dp, maxWidth - NuvioTokens.Space.s48)
         val columnWidth = max(posterWidth, menuWidth)
@@ -578,3 +603,127 @@ private fun androidx.compose.ui.unit.Density.posterCornerRadiusPx(
 }
 
 private val PosterZoomFinalCornerRadius = NuvioTokens.Space.s18
+
+private val DesktopContextMenuEasing = androidx.compose.animation.core.CubicBezierEasing(0.32f, 0.72f, 0f, 1f)
+
+@Composable
+private fun DesktopPosterContextMenu(
+    title: String,
+    subtitle: String?,
+    anchor: PosterZoomAnchor?,
+    actions: List<PosterZoomOverlayAction>,
+    onDismissed: () -> Unit,
+    modifier: Modifier,
+) {
+    val tokens = MaterialTheme.nuvio
+    val scope = rememberCoroutineScope()
+    val frozenActions = remember { actions }
+    val progress = remember { Animatable(0f) }
+    var closing by remember { mutableStateOf(false) }
+    var origin by remember { mutableStateOf(Offset.Zero) }
+    val currentOnDismissed by rememberUpdatedState(onDismissed)
+    val shape = RoundedCornerShape(16.dp)
+
+    DisposableEffect(Unit) {
+        PosterZoomOverlayCoordinator.show()
+        onDispose { PosterZoomOverlayCoordinator.hide() }
+    }
+    LaunchedEffect(Unit) {
+        progress.animateTo(1f, tween(280, easing = DesktopContextMenuEasing))
+    }
+
+    fun close(after: (() -> Unit)? = null) {
+        if (closing) return
+        closing = true
+        scope.launch {
+            progress.animateTo(0f, tween(160, easing = DesktopContextMenuEasing))
+            currentOnDismissed()
+            after?.invoke()
+        }
+    }
+
+    PlatformBackHandler(enabled = true) { close() }
+
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .onGloballyPositioned { origin = it.positionInRoot() }
+            .pointerInput(Unit) { detectTapGestures { close() } },
+    ) {
+        // Lays the menu out beside the poster: to its right, or to its left when there is no room,
+        // and kept inside the window.
+        var menuOnLeft by remember { mutableStateOf(false) }
+        androidx.compose.ui.layout.Layout(
+            content = {
+                Column(
+                    modifier = Modifier
+                        // As wide as its longest label, so no action is cut off.
+                        .width(androidx.compose.foundation.layout.IntrinsicSize.Max)
+                        .widthIn(min = 240.dp, max = 420.dp)
+                        .graphicsLayer {
+                            val p = progress.value.coerceIn(0f, 1f)
+                            alpha = p
+                            val scale = 0.92f + 0.08f * p
+                            scaleX = scale
+                            scaleY = scale
+                            transformOrigin = androidx.compose.ui.graphics.TransformOrigin(if (menuOnLeft) 1f else 0f, 0f)
+                        }
+                        .shadow(24.dp, shape)
+                        .clip(shape)
+                        .background(tokens.colors.surfaceSheet)
+                        .nuvioCardDepth(shape, NuvioCardDepthSurface.Controls, fallbackBorderAlpha = 0.10f)
+                        .pointerInput(Unit) { detectTapGestures { } },
+                ) {
+                    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+                        Text(
+                            text = title,
+                            style = MaterialTheme.typography.titleMedium,
+                            color = tokens.colors.textPrimary,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        if (!subtitle.isNullOrBlank()) {
+                            Text(
+                                text = subtitle,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = tokens.colors.textMuted,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    }
+                    HorizontalDivider(thickness = tokens.borders.hairline, color = tokens.colors.borderSubtle)
+                    frozenActions.forEach { action ->
+                        PosterZoomMenuRow(
+                            action = action,
+                            enabled = !closing,
+                            onSelected = { close(after = action.onSelected) },
+                        )
+                    }
+                }
+            },
+        ) { measurables, constraints ->
+            val placeable = measurables.first().measure(constraints.copy(minWidth = 0, minHeight = 0))
+            layout(constraints.maxWidth, constraints.maxHeight) {
+                val gap = 12.dp.toPx()
+                val bounds = anchor?.boundsInRoot?.translate(-origin.x, -origin.y)
+                val x: Float
+                val y: Float
+                if (bounds == null) {
+                    x = (constraints.maxWidth - placeable.width) / 2f
+                    y = (constraints.maxHeight - placeable.height) / 2f
+                } else {
+                    menuOnLeft = bounds.right + gap + placeable.width > constraints.maxWidth
+                    x = if (menuOnLeft) bounds.left - gap - placeable.width else bounds.right + gap
+                    y = bounds.top
+                }
+                val margin = 12.dp.toPx()
+                placeable.place(
+                    x.coerceIn(margin, (constraints.maxWidth - placeable.width - margin).coerceAtLeast(margin)).toInt(),
+                    y.coerceIn(margin, (constraints.maxHeight - placeable.height - margin).coerceAtLeast(margin)).toInt(),
+                )
+            }
+        }
+    }
+}

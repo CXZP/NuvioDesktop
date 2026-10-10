@@ -1,5 +1,6 @@
 package com.nuvio.app.features.details.components
 
+import com.nuvio.app.core.ui.nuvioTooltip
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -146,14 +147,14 @@ fun TrailerPlayerPopup(
                     }
                 }
 
-                IconButton(onClick = toggleFullscreen) {
+                IconButton(onClick = toggleFullscreen, modifier = Modifier.nuvioTooltip(stringResource(Res.string.trailer_enter_fullscreen))) {
                     Icon(
                         imageVector = Icons.Rounded.Fullscreen,
                         contentDescription = stringResource(Res.string.trailer_enter_fullscreen),
                         tint = MaterialTheme.colorScheme.onSurface,
                     )
                 }
-                IconButton(onClick = dismissSheet) {
+                IconButton(onClick = dismissSheet, modifier = Modifier.nuvioTooltip(stringResource(Res.string.trailer_close))) {
                     Icon(
                         imageVector = Icons.Rounded.Close,
                         contentDescription = stringResource(Res.string.trailer_close),

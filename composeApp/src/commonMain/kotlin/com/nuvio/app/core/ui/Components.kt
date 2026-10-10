@@ -1,5 +1,7 @@
 package com.nuvio.app.core.ui
 
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.MutableTransitionState
@@ -134,7 +136,10 @@ fun NuvioSurfaceCard(
 ) {
     val tokens = MaterialTheme.nuvio
     Surface(
-        modifier = modifier.fillMaxWidth(),
+        // Desktop: the same glass edge as the settings cards.
+        modifier = modifier
+            .fillMaxWidth()
+            .then(if (isDesktop) Modifier.nuvioCardDepth(tokens.shapes.card, NuvioCardDepthSurface.Controls) else Modifier),
         color = tokens.colors.surface,
         shape = tokens.shapes.card,
         tonalElevation = tonalElevation.dp,
@@ -195,7 +200,7 @@ fun NuvioScreenHeader(
                 horizontalArrangement = Arrangement.spacedBy(tokens.spacing.controlGap),
             ) {
                 if (onBack != null) {
-                    IconButton(onClick = onBack) {
+                    IconButton(onClick = onBack, modifier = Modifier.nuvioTooltip(stringResource(Res.string.action_back))) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
                             contentDescription = stringResource(Res.string.action_back),
@@ -216,11 +221,12 @@ fun NuvioScreenHeader(
                 }
             }
             Row(
-                horizontalArrangement = Arrangement.spacedBy(NuvioTokens.Space.s2),
+                horizontalArrangement = Arrangement.spacedBy(if (isDesktop) 12.dp else NuvioTokens.Space.s2),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                // Desktop: the same 40dp glass circle as the icon buttons beside it, evenly spaced.
                 FullscreenActionButton(
-                    buttonSize = 48.dp,
+                    buttonSize = if (isDesktop) 40.dp else 48.dp,
                     iconSize = 24.dp,
                     contentColor = tokens.colors.textPrimary,
                 )
@@ -302,12 +308,15 @@ fun NuvioBackButton(
     contentDescription: String = stringResource(Res.string.action_back),
 ) {
     if (LocalUseNativeNavigation.current && !LocalNativeNavigationBarHidden.current) return
-    val effectiveContainerColor = if (isDesktop && !showContainerOnDesktop) Color.Transparent else containerColor
+    // Desktop: the same glass circle on every page (as on the details page).
+    val effectiveContainerColor = if (isDesktop) DesktopGlassButtonColor else containerColor
 
     Box(
         modifier = modifier
+            .nuvioTooltip(contentDescription)
             .size(buttonSize)
-            .clip(shape)
+            .then(if (isDesktop) Modifier.nuvioCardDepth(CircleShape, NuvioCardDepthSurface.Controls, fallbackBorderAlpha = 0.14f) else Modifier)
+            .clip(if (isDesktop) CircleShape else shape)
             .background(effectiveContainerColor)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
@@ -331,16 +340,28 @@ fun NuvioPrimaryButton(
     val tokens = MaterialTheme.nuvio
     Button(
         onClick = onClick,
-        modifier = modifier
-            .fillMaxWidth()
-            .height(NuvioTokens.Space.s48 + NuvioTokens.Space.s4),
+        // Desktop: a capsule sized to its label (at least a comfortable width), not a bar across the
+        // whole window.
+        modifier = if (isDesktop) {
+            modifier
+                .widthIn(min = 220.dp)
+                .height(44.dp)
+                .nuvioCardDepth(RoundedCornerShape(percent = 50), NuvioCardDepthSurface.Controls)
+        } else {
+            modifier
+                .fillMaxWidth()
+                .height(NuvioTokens.Space.s48 + NuvioTokens.Space.s4)
+        },
         enabled = enabled,
-        shape = tokens.shapes.button,
+        shape = if (isDesktop) RoundedCornerShape(percent = 50) else tokens.shapes.button,
+        // Desktop: glass, the same as the hero and details buttons. A lit edge on a solid white
+        // button didn't read as glass, only as a smudged outline.
         colors = ButtonDefaults.buttonColors(
-            containerColor = tokens.colors.accent,
-            contentColor = tokens.colors.onAccent,
-            disabledContainerColor = tokens.colors.accent.copy(alpha = tokens.opacity.disabled),
-            disabledContentColor = tokens.colors.onAccent.copy(alpha = tokens.opacity.disabled),
+            containerColor = if (isDesktop) Color.White.copy(alpha = 0.14f) else tokens.colors.accent,
+            contentColor = if (isDesktop) Color.White else tokens.colors.onAccent,
+            // Desktop: disabled stays glass, just fainter; a flat grey slab read as broken.
+            disabledContainerColor = if (isDesktop) Color.White.copy(alpha = 0.05f) else tokens.colors.accent.copy(alpha = tokens.opacity.disabled),
+            disabledContentColor = if (isDesktop) Color.White.copy(alpha = 0.32f) else tokens.colors.onAccent.copy(alpha = tokens.opacity.disabled),
         ),
     ) {
         AnimatedContent(
@@ -371,7 +392,8 @@ fun NuvioInputField(
         onValueChange = onValueChange,
         modifier = modifier.fillMaxWidth(),
         singleLine = true,
-        shape = RoundedCornerShape(NuvioTokens.Radius.lg),
+        // Desktop: a glass capsule, like the menu bar it sits under.
+        shape = if (isDesktop) RoundedCornerShape(percent = 50) else RoundedCornerShape(NuvioTokens.Radius.lg),
         placeholder = {
             Text(
                 text = placeholder,
@@ -382,10 +404,10 @@ fun NuvioInputField(
         textStyle = MaterialTheme.typography.bodyLarge.copy(color = tokens.colors.textPrimary),
         trailingIcon = trailingContent,
         colors = OutlinedTextFieldDefaults.colors(
-            focusedBorderColor = tokens.colors.borderFocus,
-            unfocusedBorderColor = tokens.colors.borderDefault,
-            focusedContainerColor = tokens.colors.surfaceCard,
-            unfocusedContainerColor = tokens.colors.surfaceCard,
+            focusedBorderColor = if (isDesktop) Color.White.copy(alpha = 0.35f) else tokens.colors.borderFocus,
+            unfocusedBorderColor = if (isDesktop) Color.White.copy(alpha = 0.12f) else tokens.colors.borderDefault,
+            focusedContainerColor = if (isDesktop) Color(0xFF1C1C1E).copy(alpha = 0.82f) else tokens.colors.surfaceCard,
+            unfocusedContainerColor = if (isDesktop) Color(0xFF1C1C1E).copy(alpha = 0.72f) else tokens.colors.surfaceCard,
             cursorColor = tokens.colors.accent,
         ),
     )
@@ -571,3 +593,14 @@ object NuvioToastController {
         }
     }
 }
+
+/** Desktop glass for round icon buttons (back, fullscreen) over any background. */
+internal val DesktopGlassButtonColor = Color(0xFF1C1C1E).copy(alpha = 0.55f)
+
+/** Desktop: the glass circle of the back and fullscreen buttons, for other icon buttons beside them. */
+@Composable
+fun Modifier.desktopGlassCircle(size: Dp = 40.dp): Modifier = if (!isDesktop) this else this
+    .size(size)
+    .nuvioCardDepth(CircleShape, NuvioCardDepthSurface.Controls, fallbackBorderAlpha = 0.14f)
+    .clip(CircleShape)
+    .background(DesktopGlassButtonColor)

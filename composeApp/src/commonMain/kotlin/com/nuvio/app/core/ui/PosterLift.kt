@@ -27,6 +27,9 @@ import com.nuvio.app.isDesktop
 
 internal val LocalPosterClickAnchor = staticCompositionLocalOf<((PosterZoomAnchor) -> Unit)?> { null }
 
+/** Set by the hover preview in its long-press mode: a long press opens it instead of the action menu. */
+internal val LocalPosterLongPressOverride = staticCompositionLocalOf<(() -> Unit)?> { null }
+
 internal class PosterLiftSource(private val graphicsContext: GraphicsContext) : RememberObserver {
     val layer = graphicsContext.createGraphicsLayer()
     var bounds: Rect? = null
@@ -95,7 +98,8 @@ internal fun Modifier.posterCardClickable(
         .then(this)
     if (onClick == null && onLongClick == null) return posterModifier
     val interactionSource = remember { MutableInteractionSource() }
-    val handleLongClick = onLongClick?.let { longClick ->
+    val longPressOverride = LocalPosterLongPressOverride.current
+    val actionMenuClick = onLongClick?.let { longClick ->
         {
             source.bounds?.let { cardBounds ->
                 PosterZoomAnchorHolder.stash(
@@ -126,9 +130,11 @@ internal fun Modifier.posterCardClickable(
                     onClick()
                 }
             },
-            onLongClick = handleLongClick,
+            onLongClick = longPressOverride ?: actionMenuClick,
         )
-        .secondaryClick(handleLongClick)
+        // Right click always opens the poster's action menu, even when a long press opens the
+        // hover preview, so the menu stays reachable.
+        .secondaryClick(actionMenuClick ?: longPressOverride)
 }
 
 internal fun DrawScope.drawLiftedPoster(source: PosterLiftSource) {

@@ -1,9 +1,8 @@
 package com.nuvio.app.core.ui
 
 import androidx.compose.foundation.gestures.Orientation
-import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.hoverable
@@ -562,10 +561,8 @@ internal fun Modifier.desktopPosterHoverScale(
     val hovered by interactionSource.collectIsHoveredAsState()
     val scale by animateFloatAsState(
         targetValue = if (hovered) DesktopPosterHoverScale else 1f,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioNoBouncy,
-            stiffness = Spring.StiffnessMediumLow,
-        ),
+        // Eased in and out: a spring starts at full speed, so the lift looked like it jumped.
+        animationSpec = tween(durationMillis = 420, easing = NuvioTokens.Motion.standard),
         label = "desktop_poster_hover_scale",
     )
 

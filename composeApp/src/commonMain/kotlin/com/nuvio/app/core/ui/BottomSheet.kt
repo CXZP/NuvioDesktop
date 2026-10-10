@@ -1,6 +1,8 @@
 package com.nuvio.app.core.ui
 
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.background
+import com.nuvio.app.isDesktop
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -90,6 +92,8 @@ fun NuvioBottomSheetDivider(
     modifier: Modifier = Modifier,
 ) {
     val tokens = MaterialTheme.nuvio
+    // Desktop lists use spacing and a hover highlight instead of rules between rows.
+    if (isDesktop) return
     HorizontalDivider(
         modifier = modifier.padding(horizontal = tokens.spacing.screenHorizontal),
         thickness = tokens.borders.hairline,
@@ -107,14 +111,22 @@ fun NuvioBottomSheetActionRow(
     trailingContent: (@Composable RowScope.() -> Unit)? = null,
 ) {
     val tokens = MaterialTheme.nuvio
+    val interaction = androidx.compose.runtime.remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    val hovered = isDesktop && interaction.collectIsHoveredAsState().value
     Row(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = NuvioTokens.Space.s8)
             .heightIn(min = NuvioTokens.Space.s56)
             .clip(tokens.shapes.compactCard)
-            .background(if (selected) tokens.colors.accent.copy(alpha = tokens.opacity.hover) else Color.Transparent)
-            .clickable(onClick = onClick)
+            .background(
+                when {
+                    selected -> tokens.colors.accent.copy(alpha = tokens.opacity.selected)
+                    hovered -> tokens.colors.textPrimary.copy(alpha = 0.06f)
+                    else -> Color.Transparent
+                },
+            )
+            .clickable(interactionSource = interaction, indication = null, onClick = onClick)
             .padding(NuvioTokens.Space.s8),
         horizontalArrangement = Arrangement.spacedBy(NuvioTokens.Space.s14),
         verticalAlignment = Alignment.CenterVertically,
@@ -155,6 +167,8 @@ suspend fun dismissNuvioBottomSheet(
 ) {
     if (usesNativeNuvioBottomSheet) {
         dismissNativeNuvioBottomSheet()
+        // Desktop: let the centred panel animate out before it is removed.
+        if (isDesktop) kotlinx.coroutines.delay(220L)
     } else if (sheetState.isVisible) {
         sheetState.hide()
     }
@@ -172,3 +186,4 @@ private fun NuvioBottomSheetDragHandle(modifier: Modifier = Modifier) {
             .background(tokens.colors.borderStrong),
     )
 }
+

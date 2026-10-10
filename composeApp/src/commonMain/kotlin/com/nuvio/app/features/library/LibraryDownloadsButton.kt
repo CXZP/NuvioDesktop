@@ -1,5 +1,8 @@
 package com.nuvio.app.features.library
 
+import androidx.compose.ui.unit.dp
+import com.nuvio.app.core.ui.desktopGlassCircle
+import com.nuvio.app.core.ui.nuvioTooltip
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -41,7 +44,7 @@ internal fun LibraryDownloadsButton(onClick: () -> Unit) {
     }.collectAsStateWithLifecycle()
     val hasUnseenCompleted by DownloadsRepository.hasUnseenCompleted.collectAsStateWithLifecycle()
 
-    IconButton(onClick = onClick) {
+    IconButton(onClick = onClick, modifier = Modifier.desktopGlassCircle(48.dp).nuvioTooltip(stringResource(Res.string.compose_settings_root_downloads_title))) {
         when {
             downloads.items.any { it.status == DownloadStatus.Downloading } -> FlowingDownloadIcon()
             hasUnseenCompleted -> DownloadIcon(

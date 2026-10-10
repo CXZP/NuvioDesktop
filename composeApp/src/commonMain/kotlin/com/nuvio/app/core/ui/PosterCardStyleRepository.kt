@@ -31,6 +31,7 @@ private data class StoredPosterCardStylePreferences(
     val hoverPreviewEnabled: Boolean = true,
     val hoverPreviewOpenDelayMillis: Int = DefaultHoverPreviewOpenDelayMillis,
     val hoverPreviewTrailerEnabled: Boolean = false,
+    val hoverPreviewOnLongPress: Boolean = false,
     val hoverPreviewTrailerSoundEnabled: Boolean = false,
     val hoverPreviewTrailerStartSeconds: Int = DefaultHoverPreviewTrailerStartSeconds,
     val alwaysShowLandscapeClearlogo: Boolean = false,
@@ -45,6 +46,7 @@ data class PosterCardStyleUiState(
     val hoverPreviewEnabled: Boolean = true,
     val hoverPreviewOpenDelayMillis: Int = DefaultHoverPreviewOpenDelayMillis,
     val hoverPreviewTrailerEnabled: Boolean = false,
+    val hoverPreviewOnLongPress: Boolean = false,
     val hoverPreviewTrailerSoundEnabled: Boolean = false,
     val hoverPreviewTrailerStartSeconds: Int = DefaultHoverPreviewTrailerStartSeconds,
     val alwaysShowLandscapeClearlogo: Boolean = false,
@@ -123,6 +125,13 @@ object PosterCardStyleRepository {
         persist()
     }
 
+    fun setHoverPreviewOnLongPress(enabled: Boolean) {
+        ensureLoaded()
+        if (_uiState.value.hoverPreviewOnLongPress == enabled) return
+        _uiState.value = _uiState.value.copy(hoverPreviewOnLongPress = enabled)
+        persist()
+    }
+
     fun setHoverPreviewTrailerEnabled(enabled: Boolean) {
         ensureLoaded()
         if (_uiState.value.hoverPreviewTrailerEnabled == enabled) return
@@ -196,6 +205,7 @@ object PosterCardStyleRepository {
                     stored.hoverPreviewOpenDelayMillis,
                 ),
                 hoverPreviewTrailerEnabled = stored.hoverPreviewTrailerEnabled,
+                hoverPreviewOnLongPress = stored.hoverPreviewOnLongPress,
                 hoverPreviewTrailerSoundEnabled = stored.hoverPreviewTrailerSoundEnabled,
                 hoverPreviewTrailerStartSeconds = normalizeHoverPreviewTrailerStartSeconds(
                     stored.hoverPreviewTrailerStartSeconds,
@@ -219,6 +229,7 @@ object PosterCardStyleRepository {
                     hoverPreviewEnabled = _uiState.value.hoverPreviewEnabled,
                     hoverPreviewOpenDelayMillis = _uiState.value.hoverPreviewOpenDelayMillis,
                     hoverPreviewTrailerEnabled = _uiState.value.hoverPreviewTrailerEnabled,
+                    hoverPreviewOnLongPress = _uiState.value.hoverPreviewOnLongPress,
                     hoverPreviewTrailerSoundEnabled = _uiState.value.hoverPreviewTrailerSoundEnabled,
                     hoverPreviewTrailerStartSeconds = _uiState.value.hoverPreviewTrailerStartSeconds,
                     alwaysShowLandscapeClearlogo = _uiState.value.alwaysShowLandscapeClearlogo,
