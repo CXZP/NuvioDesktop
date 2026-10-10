@@ -2,14 +2,12 @@ package com.nuvio.app.features.home.components
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import com.nuvio.app.core.format.formatReleaseDateForDisplay
 import com.nuvio.app.features.details.MetaDetailsRepository
-import kotlinx.coroutines.delay
 
 /**
  * Library items keep the release line they had when they were saved, so a series saved while it was
@@ -23,20 +21,15 @@ internal val LocalRefreshStaleReleaseInfo = staticCompositionLocalOf { false }
 internal fun rememberReleaseLine(type: String, id: String, releaseInfo: String?): String? {
     val raw = releaseInfo ?: return null
     val stillRunning = type == "series" && openRangeRegex.matches(raw.trim())
-    var fresh by remember(id, raw) { mutableStateOf(if (stillRunning) freshReleaseInfo(type, id, raw) else null) }
-    val refresh = LocalRefreshStaleReleaseInfo.current
-    if (stillRunning && fresh == null && refresh) {
-        LaunchedEffect(id, raw) {
-            MetaDetailsRepository.prefetch(type, id)
-            repeat(40) {
-                delay(250)
-                freshReleaseInfo(type, id, raw)?.let {
-                    fresh = it
-                    return@LaunchedEffect
-                }
-            }
-        }
+    if (!stillRunning) return formatReleaseDateForDisplay(raw)
+    if (LocalRefreshStaleReleaseInfo.current) {
+        // Only the addon's own meta: enough for the status and last air date, without the
+        // TMDB/MDBList calls a full details load makes.
+        LaunchedEffect(type, id) { MetaDetailsRepository.prefetch(type, id, enrich = false) }
     }
+    // Look again whenever a prefetch lands, instead of polling.
+    val prefetchVersion by MetaDetailsRepository.prefetchVersion.collectAsState()
+    val fresh = remember(type, id, raw, prefetchVersion) { freshReleaseInfo(type, id, raw) }
     return formatReleaseDateForDisplay(fresh ?: raw)
 }
 

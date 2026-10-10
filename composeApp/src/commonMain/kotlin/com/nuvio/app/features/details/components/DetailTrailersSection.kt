@@ -1,5 +1,11 @@
 package com.nuvio.app.features.details.components
 
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.Json
@@ -325,26 +331,31 @@ private fun trailerSectionSizing(maxWidthDp: Float, userCornerRadius: androidx.c
  * Addons often send trailers with no name, which the parser fills with the generic "Trailer", so a
  * row reads "Trailer, Trailer, Trailer". Those take the video's own title from YouTube's oEmbed.
  */
+@OptIn(ExperimentalCoroutinesApi::class)
 @Composable
 private fun rememberTrailerTitle(trailer: MetaTrailer): String {
     val given = trailer.displayName ?: trailer.name
     val generic = stringResource(Res.string.generic_trailer)
     if (given != generic || !trailer.site.equals("YouTube", ignoreCase = true)) return given
-    var title by remember(trailer.key) { mutableStateOf(youTubeTitleCache[trailer.key]) }
+    var title by remember(trailer.key) { mutableStateOf(youTubeTitles[trailer.key]?.takeIf { it.isCompleted }?.getCompleted()) }
     LaunchedEffect(trailer.key) {
         if (title != null) return@LaunchedEffect
-        val fetched = runCatching {
-            val body = com.nuvio.app.features.addons.httpGetText(
-                "https://www.youtube.com/oembed?format=json&url=https://www.youtube.com/watch?v=${trailer.key}",
-            )
-            Json.parseToJsonElement(body).jsonObject["title"]?.jsonPrimitive?.content
-        }.getOrNull()?.takeIf { it.isNotBlank() }
-        if (fetched != null) {
-            youTubeTitleCache[trailer.key] = fetched
-            title = fetched
+        // One request per video, shared by every card showing it (the same trailer often appears
+        // under several categories). Read and written on the main thread only.
+        val request = youTubeTitles.getOrPut(trailer.key) {
+            youTubeTitleScope.async {
+                runCatching {
+                    val body = com.nuvio.app.features.addons.httpGetText(
+                        "https://www.youtube.com/oembed?format=json&url=https://www.youtube.com/watch?v=${trailer.key}",
+                    )
+                    Json.parseToJsonElement(body).jsonObject["title"]?.jsonPrimitive?.content
+                }.getOrNull()?.takeIf { it.isNotBlank() }
+            }
         }
+        title = request.await()
     }
     return title ?: given
 }
 
-private val youTubeTitleCache = mutableMapOf<String, String>()
+private val youTubeTitleScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+private val youTubeTitles = mutableMapOf<String, Deferred<String?>>()

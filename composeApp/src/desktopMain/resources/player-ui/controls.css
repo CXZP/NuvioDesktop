@@ -3471,10 +3471,8 @@ svg {
   border-radius: 28px;
   border: 1px solid rgba(255, 255, 255, .14);
   /* The video is drawn by mpv in its own native window under this WebView, so backdrop-filter
-     cannot blur it; a denser tint stands in for the frosting. */
+     cannot blur it (and would only cost a GPU pass a frame); a denser tint stands in for it. */
   background: rgba(34, 34, 38, .88);
-  backdrop-filter: blur(32px) saturate(1.6);
-  -webkit-backdrop-filter: blur(32px) saturate(1.6);
   box-shadow: 0 24px 70px rgba(0, 0, 0, .35), inset 0 1px 0 rgba(255, 255, 255, .12);
   /* Each card slides in from, and back out to, its own edge. */
   transform: translateX(48px);
@@ -3625,8 +3623,6 @@ svg {
 .panel-button {
   background: rgba(255, 255, 255, .10);
   border: 1px solid rgba(255, 255, 255, .16);
-  backdrop-filter: blur(18px) saturate(1.4);
-  -webkit-backdrop-filter: blur(18px) saturate(1.4);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, .14);
 }
 
@@ -3734,4 +3730,12 @@ svg {
 .player-side-panel * {
   scrollbar-width: auto !important;
   scrollbar-color: auto !important;
+}
+
+/* Blur only where there is HTML behind the buttons to blur: the opening screen's artwork. During
+   playback the video is in mpv's native window and a blur would only cost a GPU pass a frame. */
+.opening-active .header-button,
+.opening-active .opening-button {
+  backdrop-filter: blur(18px) saturate(1.4);
+  -webkit-backdrop-filter: blur(18px) saturate(1.4);
 }

@@ -46,6 +46,10 @@ object MetaDetailsRepository {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val _uiState = MutableStateFlow(MetaDetailsUiState())
     val uiState: StateFlow<MetaDetailsUiState> = _uiState.asStateFlow()
+
+    // Bumped whenever a prefetch finishes, so callers reading [peek] know to look again.
+    private val _prefetchVersion = MutableStateFlow(0)
+    val prefetchVersion: StateFlow<Int> = _prefetchVersion.asStateFlow()
     private var activeRequestKey: String? = null
     private val cachedMetaByRequestKey = mutableMapOf<String, CachedMetaEntry>()
 
@@ -184,12 +188,14 @@ object MetaDetailsRepository {
      * touching the screen state. Desktop calls it while the pointer rests on a poster, so the details
      * page usually has everything by the time it opens instead of showing a spinner.
      */
-    fun prefetch(type: String, id: String) {
+    fun prefetch(type: String, id: String, enrich: Boolean = true) {
         val requestKey = "$type:$id"
         if (requestKey == activeRequestKey || requestKey in prefetchingRequestKeys) return
         val mdbListSettings = MdbListSettingsRepository.snapshot()
         val metaScreenSettingsFingerprint = buildMetaScreenSettingsFingerprint(mdbListSettings)
         val cachedEntry = cachedMetaByRequestKey[requestKey]
+        // [enrich] false: only the addon's own meta (no TMDB/MDBList calls), for small lookups.
+        if (!enrich && cachedEntry != null) return
         if (cachedEntry?.metaScreenMeta != null &&
             cachedEntry.metaScreenSettingsFingerprint == metaScreenSettingsFingerprint
         ) {
@@ -200,7 +206,7 @@ object MetaDetailsRepository {
         scope.launch {
             try {
                 val meta = fetch(type, id) ?: return@launch
-                if (shouldEnrichForMetaScreen(meta, id, mdbListSettings)) {
+                if (enrich && shouldEnrichForMetaScreen(meta, id, mdbListSettings)) {
                     withContext(Dispatchers.Default) {
                         enrichForMetaScreen(
                             requestKey = requestKey,
@@ -217,6 +223,7 @@ object MetaDetailsRepository {
                 log.w { "Prefetch failed — type=$type id=$id: ${e.message}" }
             } finally {
                 prefetchingRequestKeys -= requestKey
+                _prefetchVersion.value += 1
             }
         }
     }
