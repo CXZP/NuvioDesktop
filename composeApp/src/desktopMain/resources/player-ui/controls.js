@@ -457,7 +457,7 @@ const setPipLocked = locked => {
 };
 const prefersReducedMotion = window.matchMedia &&
   window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-const modalTransitionMs = prefersReducedMotion ? 1 : 240;
+const modalTransitionMs = prefersReducedMotion ? 1 : 480;
 const chromeAutoHideDelayMs = 3500;
 const chromeActivityThrottleMs = 300;
 const hiddenCursorHideDelayMs = 3000;
@@ -948,6 +948,22 @@ const modalByName = {
 const modalElements = Object.values(modalByName);
 const modalCloseTimers = new Map();
 
+// Side panels sit between the header buttons and the title line (see .player-side-modal).
+const syncDrawerInsets = () => {
+  const root = document.documentElement;
+  const title = document.getElementById("title");
+  const header = document.getElementById("backButton");
+  const titleRect = title ? title.getBoundingClientRect() : null;
+  if (titleRect && titleRect.height > 0) {
+    root.style.setProperty("--drawer-bottom", `${Math.max(24, window.innerHeight - titleRect.top + 20)}px`);
+  }
+  const headerRect = header ? header.getBoundingClientRect() : null;
+  if (headerRect && headerRect.height > 0) {
+    root.style.setProperty("--drawer-top", `${headerRect.bottom + 16}px`);
+  }
+};
+window.addEventListener("resize", syncDrawerInsets);
+
 const setModalVisibility = (modal, visible, animated = true) => {
   const pendingTimer = modalCloseTimers.get(modal);
   if (pendingTimer) {
@@ -958,6 +974,10 @@ const setModalVisibility = (modal, visible, animated = true) => {
     modal.dataset.modalState = "open";
     modal.hidden = false;
     modal.classList.remove("modal-closing");
+    syncDrawerInsets();
+    // Commit the closed pose before animating, so the panel slides in every time instead of
+    // sometimes appearing in place.
+    void modal.offsetWidth;
     window.requestAnimationFrame(() => {
       if (modal.dataset.modalState === "open") {
         modal.classList.add("modal-visible");
@@ -2364,6 +2384,9 @@ const finishChromePointerInteraction = event => {
 };
 
 const renderChrome = () => {
+  document.querySelectorAll(".action-pill .action[data-command]").forEach(button => {
+    button.classList.toggle("is-open", !!activeModal && button.dataset.command === activeModal);
+  });
   const durationMs = Math.max(0, Number(state.durationMs) || 0);
   const positionMs = isScrubbing ? scrubPositionMs : Math.max(0, Number(state.positionMs) || 0);
   const isPlaying = Boolean(state.isPlaying);
@@ -3948,3 +3971,49 @@ setProgress(0, 0);
 focusShortcutRoot();
 render();
 send("controlsReady", 0);
+
+// The app's own tooltip instead of the browser's: a small glass capsule under the control, shown
+// after the pointer rests on it. Buttons show their aria-label. Reads each element's title (moved to data-tip so the native one
+// never appears), including titles the script sets later.
+(() => {
+  const tip = document.createElement("div");
+  tip.className = "nuvio-tooltip";
+  document.body.appendChild(tip);
+  let timer = 0;
+  let current = null;
+  const hide = () => {
+    clearTimeout(timer);
+    current = null;
+    tip.classList.remove("visible");
+  };
+  document.addEventListener("pointerover", event => {
+    const el = event.target.closest("[title],[data-tip],button.header-button[aria-label],button.action[aria-label],button.volume-button[aria-label],button.opening-button[aria-label]");
+    if (!el || el === current) return;
+    if (el.hasAttribute("title")) {
+      el.dataset.tip = el.getAttribute("title");
+      el.removeAttribute("title");
+    }
+    const text = el.dataset.tip || el.getAttribute("aria-label");
+    if (!text) return;
+    hide();
+    current = el;
+    timer = setTimeout(() => {
+      if (current !== el) return;
+      tip.textContent = text;
+      const r = el.getBoundingClientRect();
+      tip.classList.add("visible");
+      const w = tip.offsetWidth;
+      const h = tip.offsetHeight;
+      let x = r.left + r.width / 2 - w / 2;
+      x = Math.max(8, Math.min(window.innerWidth - w - 8, x));
+      let y = r.top - h - 10;
+      if (y < 8) y = r.bottom + 10;
+      tip.style.left = `${x}px`;
+      tip.style.top = `${y}px`;
+    }, 450);
+  });
+  document.addEventListener("pointerout", event => {
+    if (current && !current.contains(event.relatedTarget)) hide();
+  });
+  document.addEventListener("pointerdown", hide, true);
+})();

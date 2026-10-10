@@ -3431,3 +3431,307 @@ svg {
   stroke: none;
   pointer-events: none;
 }
+
+
+/* Player panels as floating Liquid Glass cards, like Nuvio's iOS player: each on its own side
+   (speed, audio and subtitles on the left, sources and episodes on the right), from near the top
+   down to the title line, so the controls stay visible underneath. */
+.player-side-modal {
+  align-items: stretch;
+  /* Top clears the header buttons and bottom stops above the title; controls.js measures both
+     (--drawer-top / --drawer-bottom) so the cards never cover them. */
+  padding: var(--drawer-top, 112px) 28px var(--drawer-bottom, 160px);
+  background: rgba(0, 0, 0, .12);
+  transition: opacity 320ms ease;
+}
+
+/* Speed, audio and subtitles: as tall as their content, standing on the title line and growing
+   upwards, like the iOS player. */
+.player-drawer-modal {
+  align-items: flex-end;
+}
+
+.player-drawer-modal .player-side-panel {
+  height: auto !important;
+  max-height: 100%;
+}
+
+.player-drawer-modal .player-side-panel.subtitle-drawer-panel {
+  height: 100% !important;
+}
+
+.player-drawer-modal {
+  justify-content: flex-start;
+}
+
+.player-side-modal .player-side-panel {
+  height: 100%;
+  max-height: none;
+  padding: 24px;
+  border-radius: 28px;
+  border: 1px solid rgba(255, 255, 255, .14);
+  /* The video is drawn by mpv in its own native window under this WebView, so backdrop-filter
+     cannot blur it; a denser tint stands in for the frosting. */
+  background: rgba(34, 34, 38, .88);
+  backdrop-filter: blur(32px) saturate(1.6);
+  -webkit-backdrop-filter: blur(32px) saturate(1.6);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, .35), inset 0 1px 0 rgba(255, 255, 255, .12);
+  /* Each card slides in from, and back out to, its own edge. */
+  transform: translateX(48px);
+  opacity: 0;
+  transition:
+    transform 480ms cubic-bezier(.32, .72, 0, 1),
+    opacity 320ms ease;
+}
+
+.player-drawer-modal .player-side-panel,
+.player-drawer-modal.modal-closing .player-side-panel {
+  transform: translateX(-48px);
+}
+
+.player-side-modal.modal-visible .player-side-panel {
+  transform: translateX(0);
+  opacity: 1;
+}
+
+.player-side-modal.modal-closing .player-side-panel {
+  transform: translateX(48px);
+  opacity: 0;
+}
+
+.player-drawer-modal.modal-closing .player-side-panel {
+  transform: translateX(-48px);
+}
+
+.player-side-panel.drawer-panel {
+  width: min(440px, calc(100vw - 48px));
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow: hidden;
+}
+
+#speedModal .player-side-panel.drawer-panel {
+  width: min(320px, calc(100vw - 48px));
+}
+
+/* Titles line up with the row text below them. */
+.player-side-panel.drawer-panel > .track-header,
+.player-side-panel .track-title {
+  flex: 0 0 auto;
+  padding: 0 18px;
+  color: #fff;
+  font-size: 26px;
+  line-height: 34px;
+  font-weight: 600;
+}
+
+.player-side-panel:not(.drawer-panel) .track-title {
+  padding: 0;
+}
+
+.player-side-panel.drawer-panel .track-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+}
+
+/* Rows: large text, the selected one as a white capsule with dark text. Speed and audio only;
+   sources and episodes keep their own cards. */
+.drawer-panel .track-row {
+  border-radius: 999px;
+  padding: 10px 18px;
+  font-size: 19px;
+}
+
+.drawer-panel .track-row.selected {
+  background: #fff;
+  color: #111;
+}
+
+.drawer-panel .track-row.selected * {
+  color: #111;
+}
+
+/* Subtitles carry more rows and options; smaller text keeps the panel compact. */
+.player-side-panel.subtitle-drawer-panel {
+  width: min(600px, calc(100vw - 48px));
+}
+
+.player-side-panel.subtitle-drawer-panel:has(.subtitle-rails.style-visible) {
+  width: min(960px, calc(100vw - 48px));
+}
+
+.player-side-panel.subtitle-drawer-panel .track-row {
+  padding: 10px 14px;
+  font-size: 15px;
+  border-radius: 16px;
+}
+
+/* Languages get the room to show full names; the subtitle list gives some up. */
+.player-side-panel.subtitle-drawer-panel .subtitle-rails {
+  flex: 1 1 auto;
+  min-height: 0;
+  grid-template-columns: 250px minmax(0, 1fr);
+}
+
+.player-side-panel.subtitle-drawer-panel .subtitle-rails.style-visible {
+  grid-template-columns: 250px minmax(0, 1fr) 280px;
+}
+
+/* Rail headings sit in a shrinking flex column; keep them at full height. */
+.player-side-panel.subtitle-drawer-panel .subtitle-rail-title {
+  flex: 0 0 auto;
+  padding: 0 14px;
+  line-height: 24px;
+}
+
+.player-side-panel.subtitle-drawer-panel .subtitle-rail .track-list,
+.player-side-panel.subtitle-drawer-panel .style-panel {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.nuvio-tooltip {
+  position: fixed;
+  z-index: 10000;
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, .14);
+  background: rgba(28, 28, 30, .92);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 140ms ease;
+}
+
+.nuvio-tooltip.visible {
+  opacity: 1;
+}
+
+
+/* Glass on every player button: round icon buttons and the small text buttons in panels. */
+.header-button,
+.action,
+.volume-button,
+.opening-button,
+.panel-button {
+  background: rgba(255, 255, 255, .10);
+  border: 1px solid rgba(255, 255, 255, .16);
+  backdrop-filter: blur(18px) saturate(1.4);
+  -webkit-backdrop-filter: blur(18px) saturate(1.4);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .14);
+}
+
+.header-button:hover,
+.action:hover,
+.volume-button:hover,
+.opening-button:hover,
+.panel-button:hover {
+  background: rgba(255, 255, 255, .18);
+}
+
+.panel-button {
+  border-radius: 999px;
+}
+
+.player-side-panel.subtitle-drawer-panel > .track-header {
+  padding: 0 14px;
+}
+
+/* Keyboard focus keeps the glass look (it used to drop the fill and edge), and the button whose
+   panel is open is lit like a selected row, so it is clear which one is showing. */
+.action.focused {
+  background: rgba(255, 255, 255, .10);
+  border-color: rgba(255, 255, 255, .16);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .14);
+}
+
+.action.focused:focus-visible {
+  border-color: rgba(255, 255, 255, .55);
+}
+
+.action.is-open,
+.action.is-open.focused,
+.action.is-open:hover {
+  background: #fff;
+  border-color: #fff;
+  color: #111;
+}
+
+/* Sources and episodes open on the left too, next to the buttons that open them. */
+#sourceModal,
+#episodesModal {
+  justify-content: flex-start;
+}
+
+#sourceModal .player-side-panel,
+#episodesModal .player-side-panel,
+#sourceModal.modal-closing .player-side-panel,
+#episodesModal.modal-closing .player-side-panel {
+  transform: translateX(-48px);
+}
+
+#sourceModal.modal-visible .player-side-panel,
+#episodesModal.modal-visible .player-side-panel {
+  transform: translateX(0);
+}
+
+/* Never taller than the space between the header buttons and the title line. */
+.player-side-modal .player-side-panel {
+  max-height: calc(100vh - var(--drawer-top, 112px) - var(--drawer-bottom, 160px)) !important;
+}
+
+/* One highlight shape for every list row: the rounded rectangle of the subtitle options. */
+.drawer-panel .track-row {
+  border-radius: 16px;
+}
+
+/* Thin overlay scrollbars in the panels instead of the Windows ones with arrow buttons. */
+.player-side-panel ::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.player-side-panel ::-webkit-scrollbar-button {
+  display: none;
+  height: 0;
+}
+
+.player-side-panel ::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.player-side-panel ::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .22);
+}
+
+/* Subtitles: the same inset on both sides of every rail. */
+.player-side-panel.subtitle-drawer-panel .subtitle-rails {
+  gap: 20px;
+}
+
+.player-side-panel.subtitle-drawer-panel .subtitle-rail .track-list,
+.player-side-panel.subtitle-drawer-panel .style-panel {
+  padding: 0 4px 0 0;
+}
+
+.player-side-panel.subtitle-drawer-panel .subtitle-rail-title,
+.player-side-panel.subtitle-drawer-panel .style-panel {
+  padding-left: 14px;
+}
+
+/* Chromium ignores the ::-webkit-scrollbar styles above while scrollbar-width/-color are set. */
+.player-side-panel,
+.player-side-panel * {
+  scrollbar-width: auto !important;
+  scrollbar-color: auto !important;
+}

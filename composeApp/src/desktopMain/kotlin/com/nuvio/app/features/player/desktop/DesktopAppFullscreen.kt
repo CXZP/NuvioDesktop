@@ -227,8 +227,11 @@ internal class DesktopAppFullscreenController {
 
         if (window is Frame) {
             if (wasMaximized) {
-                window.extendedState = Frame.NORMAL
-                window.extendedState = Frame.MAXIMIZED_BOTH
+                // The native side already put the window back to maximized. Going through NORMAL
+                // here restored and re-maximized it, each with Windows' window animation.
+                if (window.extendedState != Frame.MAXIMIZED_BOTH) {
+                    window.extendedState = Frame.MAXIMIZED_BOTH
+                }
                 windowState?.placement = WindowPlacement.Maximized
             } else {
                 window.extendedState = Frame.NORMAL

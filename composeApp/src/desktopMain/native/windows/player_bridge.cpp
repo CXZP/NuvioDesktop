@@ -309,8 +309,22 @@ void reapplyDwmWindowChrome(HWND hwnd) {
     applyDwmWindowChrome(hwnd, colors.darkMode, colors.caption, colors.border, colors.text);
 }
 
+// Restoring a maximized window on the way into fullscreen, and maximizing it again on the way
+// out, made Windows play its restore/maximize animations, which showed as the window sliding
+// sideways instead of simply filling the screen. Turn the window's DWM transitions off for the
+// switch.
+struct ScopedNoWindowTransitions {
+    HWND hwnd;
+    explicit ScopedNoWindowTransitions(HWND h) : hwnd(h) { set(TRUE); }
+    ~ScopedNoWindowTransitions() { set(FALSE); }
+    void set(BOOL disabled) {
+        DwmSetWindowAttribute(hwnd, DWMWA_TRANSITIONS_FORCEDISABLED, &disabled, sizeof(disabled));
+    }
+};
+
 void setBorderlessFullscreen(HWND hwnd, bool fullscreen, int x, int y, int width, int height) {
     if (!hwnd || !IsWindow(hwnd)) return;
+    ScopedNoWindowTransitions noTransitions(hwnd);
 
     if (fullscreen) {
         {
