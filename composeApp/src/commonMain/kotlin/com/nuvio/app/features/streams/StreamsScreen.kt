@@ -1,5 +1,6 @@
 package com.nuvio.app.features.streams
 
+import com.nuvio.app.navigation.LocalDesktopDrawer
 import com.nuvio.app.core.ui.smoothWheelScroll
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
@@ -251,14 +252,41 @@ fun StreamsScreen(
 
     if (showLoadingScreen) return
 
+    // Desktop: shown in a glass drawer over details (DesktopDrawerScene) rather than as a page.
+    val inDesktopDrawer = LocalDesktopDrawer.current != null
+
     BoxWithConstraints(
         modifier = modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background),
+            .then(if (inDesktopDrawer) Modifier else Modifier.background(MaterialTheme.colorScheme.background)),
     ) {
         val isTabletLayout = maxWidth >= 768.dp
 
-        if (isTabletLayout) {
+        if (inDesktopDrawer) {
+            DesktopStreamsDrawerLayout(
+                isEpisode = isEpisode,
+                title = title,
+                seasonNumber = seasonNumber,
+                episodeNumber = episodeNumber,
+                episodeTitle = episodeTitle,
+                uiState = uiState,
+                debridEnabled = debridSettings.canResolvePlayableLinks,
+                appendInstantServiceToDefaultName = debridSettings.canResolvePlayableLinks && !debridSettings.hasCustomStreamFormatting,
+                resumePositionMs = effectiveResumePositionMs,
+                resumeProgressFraction = effectiveResumeProgressFraction,
+                onStreamSelected = { stream, positionMs, progressFraction ->
+                    onStreamSelected(stream, positionMs, progressFraction)
+                },
+                onStreamLongPress = { stream ->
+                    streamActionsTarget = StreamActionsTarget(stream = stream)
+                },
+                onStreamSecondaryClick = { stream, position ->
+                    streamActionsTarget = StreamActionsTarget(stream = stream, anchorInRoot = position)
+                },
+                onRefresh = reloadStreams,
+                onClose = onBack,
+            )
+        } else if (isTabletLayout) {
             TabletStreamsLayout(
                 isEpisode = isEpisode,
                 title = title,
@@ -315,7 +343,7 @@ fun StreamsScreen(
             )
         }
 
-        Row(
+        if (!inDesktopDrawer) Row(
             modifier = Modifier
                 .align(Alignment.TopStart)
                 .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top))

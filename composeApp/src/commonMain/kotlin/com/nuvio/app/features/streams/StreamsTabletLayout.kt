@@ -1,5 +1,11 @@
 package com.nuvio.app.features.streams
 
+import com.nuvio.app.core.ui.nuvioTooltip
+import com.nuvio.app.core.ui.desktopGlassCircle
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Icon
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.Icons
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.animateColorAsState
@@ -294,6 +300,103 @@ internal fun TabletStreamsLayout(
     }
 }
 
+/** Desktop: the source list as a drawer over details (see DesktopDrawerScene). */
+@Composable
+internal fun DesktopStreamsDrawerLayout(
+    isEpisode: Boolean,
+    title: String,
+    seasonNumber: Int?,
+    episodeNumber: Int?,
+    episodeTitle: String?,
+    uiState: StreamsUiState,
+    debridEnabled: Boolean,
+    appendInstantServiceToDefaultName: Boolean,
+    resumePositionMs: Long?,
+    resumeProgressFraction: Float?,
+    onStreamSelected: (stream: StreamItem, resumePositionMs: Long?, resumeProgressFraction: Float?) -> Unit,
+    onStreamLongPress: (StreamItem) -> Unit,
+    onStreamSecondaryClick: (StreamItem, Offset) -> Unit,
+    onRefresh: () -> Unit,
+    onClose: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val context = if (isEpisode && seasonNumber != null && episodeNumber != null) {
+        title + " · " + stringResource(
+            Res.string.streams_episode_title_with_name,
+            seasonNumber,
+            episodeNumber,
+            episodeTitle?.takeIf { it.isNotBlank() } ?: stringResource(Res.string.streams_episode_fallback_title),
+        )
+    } else {
+        title
+    }
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(start = 24.dp, end = 20.dp, top = 22.dp, bottom = 12.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+                Text(
+                    text = stringResource(Res.string.compose_player_sources),
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White,
+                )
+                Text(
+                    text = context,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color.White.copy(alpha = 0.64f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            IconButton(
+                onClick = onClose,
+                modifier = Modifier.desktopGlassCircle().nuvioTooltip(stringResource(Res.string.action_close)),
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Close,
+                    contentDescription = stringResource(Res.string.action_close),
+                    tint = Color.White,
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(14.dp))
+        // Resume sits on the filter row, so the list starts at the same height for every title.
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            ProviderFilterRow(
+                groups = uiState.groups,
+                selectedFilter = uiState.selectedFilter,
+                onFilterSelected = { addonId -> StreamsRepository.selectFilter(addonId) },
+                onRefresh = onRefresh,
+                modifier = Modifier.weight(1f),
+            )
+            if ((resumePositionMs != null && resumePositionMs > 0L) || (resumeProgressFraction != null && resumeProgressFraction > 0f)) {
+                ResumeBanner(
+                    positionMs = resumePositionMs,
+                    progressFraction = resumeProgressFraction,
+                    modifier = Modifier.padding(start = 8.dp, end = 12.dp),
+                )
+            }
+        }
+        ActiveScrapersStatusBlock(
+            groups = uiState.groups,
+            modifier = Modifier.padding(bottom = 4.dp),
+        )
+        StreamList(
+            uiState = uiState,
+            debridEnabled = debridEnabled,
+            appendInstantServiceToDefaultName = appendInstantServiceToDefaultName,
+            onStreamSelected = onStreamSelected,
+            onStreamLongPress = onStreamLongPress,
+            onStreamSecondaryClick = onStreamSecondaryClick,
+            resumePositionMs = resumePositionMs,
+            resumeProgressFraction = resumeProgressFraction,
+            modifier = Modifier.weight(1f),
+        )
+    }
+}
 @Composable
 private fun LegacyTabletStreamsLayout(
     isEpisode: Boolean,

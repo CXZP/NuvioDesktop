@@ -1,5 +1,6 @@
 package com.nuvio.app
 
+import com.nuvio.app.navigation.LocalDesktopDrawer
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -369,6 +370,9 @@ internal fun StreamDestination(
         manualSelection = launch.manualSelection,
     )
     SideEffect { onLandscapeLoadingChanged(useLandscapeLoading) }
+    // Desktop drawer: the auto-play loading screen needs the whole window, not the panel.
+    val desktopDrawer = LocalDesktopDrawer.current
+    SideEffect { desktopDrawer?.fullscreen = showLoadingScreen }
     var autoPlayHandled by rememberSaveable(launch.videoId, effectiveVideoId) { mutableStateOf(false) }
     LaunchedEffect(
         streamsUiState.autoPlayStream,

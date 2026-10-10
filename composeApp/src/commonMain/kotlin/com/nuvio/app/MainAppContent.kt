@@ -1,5 +1,8 @@
 package com.nuvio.app
 
+import com.nuvio.app.core.ui.NuvioTooltipHost
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionLayout
 import androidx.compose.animation.core.MutableTransitionState
@@ -53,6 +56,12 @@ import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.LocalNavAnimatedContentScope
 import androidx.navigation3.ui.NavDisplay
+import com.nuvio.app.navigation.desktopDrawerMetadata
+import com.nuvio.app.navigation.desktopDrawerHazeState
+import com.nuvio.app.navigation.DesktopDrawerSceneStrategy
+import androidx.navigation3.scene.SinglePaneSceneStrategy
+import androidx.navigation3.ui.defaultPopTransitionSpec
+import androidx.navigation3.ui.defaultTransitionSpec
 import com.nuvio.app.core.ui.PlatformBackDispatcher
 import com.nuvio.app.core.ui.LocalPosterClickAnchor
 import com.nuvio.app.navigation.PosterNavigationState
@@ -1289,6 +1298,7 @@ internal fun MainAppContent(
                     )
                     .background(MaterialTheme.nuvio.colors.background),
             ) {
+            NuvioTooltipHost()
             SharedTransitionLayout {
                 CompositionLocalProvider(
                     LocalPosterClickAnchor provides if (posterNavigationEnabled) posterNavigation::prepare else null,
@@ -1312,9 +1322,24 @@ internal fun MainAppContent(
                         rememberSaveableStateHolderNavEntryDecorator<NavKey>(),
                         routeDisposalDecorator,
                     ),
+                    sceneStrategies = if (isDesktop) {
+                        listOf(DesktopDrawerSceneStrategy(), SinglePaneSceneStrategy())
+                    } else {
+                        listOf(SinglePaneSceneStrategy())
+                    },
                     sharedTransitionScope = this@SharedTransitionLayout,
+                    transitionSpec = if (isDesktop) desktopPageOpenTransition() else defaultTransitionSpec(),
+                    popTransitionSpec = if (isDesktop) desktopPageBackTransition() else defaultPopTransitionSpec(),
                     entryProvider = entryProvider<NavKey> {
                 entry<TabsRoute> {
+                    // Desktop: blurred under the source drawer when playing from Continue Watching.
+                    Box(
+                        modifier = if (isDesktop) {
+                            Modifier.fillMaxSize().hazeSource(state = desktopDrawerHazeState)
+                        } else {
+                            Modifier.fillMaxSize()
+                        },
+                    ) {
                     MainTabsDestination(
                         selectedTab = selectedTab,
                         initialHomeReady = initialHomeReady,
@@ -1449,6 +1474,17 @@ internal fun MainAppContent(
                                     null
                                 },
                                 onCollectionsSettingsClick = { navController.navigate(CollectionsRoute(collectionsTitle)) },
+                                onCollectionEditorClick = { collectionId ->
+                                    val editorTitle = collectionId
+                                        ?.let { id -> CollectionRepository.collections.value.firstOrNull { it.id == id }?.title }
+                                        .orEmpty()
+                                    navController.navigate(
+                                        CollectionEditorRoute(
+                                            collectionId = collectionId,
+                                            title = editorTitle.ifBlank { newCollectionTitle },
+                                        ),
+                                    )
+                                },
                                 onFolderClick = { collectionId, folderId ->
                                     val folderTitle = CollectionRepository.collections.value
                                         .firstOrNull { it.id == collectionId }
@@ -1497,16 +1533,32 @@ internal fun MainAppContent(
                         },
                         onAddProfileRequested = onSwitchProfile,
                     )
+                    }
                 }
                 entry<DetailRoute> { route ->
-                    DetailsDestination(
-                        route = route,
-                        navController = navController,
-                        onPlay = onPlay,
-                        onPlayManually = onPlayManually,
-                        sharedTransitionScope = this@SharedTransitionLayout,
-                        animatedVisibilityScope = LocalNavAnimatedContentScope.current,
-                    )
+                    val animatedVisibilityScope = LocalNavAnimatedContentScope.current
+                    // Desktop: the source picker opens as a drawer over details and blurs it.
+                    Box(
+                        modifier = if (isDesktop) {
+                            Modifier.fillMaxSize().hazeSource(state = desktopDrawerHazeState)
+                        } else {
+                            Modifier.fillMaxSize()
+                        },
+                    ) {
+                    DesktopDeferredPageContent(
+                        // The poster motion reveals the page itself.
+                        enabled = posterNavigation.active?.to != route,
+                    ) {
+                        DetailsDestination(
+                            route = route,
+                            navController = navController,
+                            onPlay = onPlay,
+                            onPlayManually = onPlayManually,
+                            sharedTransitionScope = this@SharedTransitionLayout,
+                            animatedVisibilityScope = animatedVisibilityScope,
+                        )
+                    }
+                    }
                 }
                 entry<PersonDetailRoute> { route ->
                     PersonDestination(
@@ -1521,13 +1573,8 @@ internal fun MainAppContent(
                 }
                 entry<StreamRoute>(
                     metadata = if (isDesktop) {
-                        NavDisplay.transitionSpec {
-                            fadeIn(animationSpec = tween(160)) togetherWith
-                                fadeOut(animationSpec = tween(160))
-                        } + NavDisplay.popTransitionSpec {
-                            fadeIn(animationSpec = tween(160)) togetherWith
-                                fadeOut(animationSpec = tween(160))
-                        }
+                        // A glass drawer over the page it was opened from (DesktopDrawerScene).
+                        desktopDrawerMetadata()
                     } else {
                         emptyMap()
                     },
@@ -1552,6 +1599,10 @@ internal fun MainAppContent(
                             fadeIn(animationSpec = tween(220)) togetherWith
                                 fadeOut(animationSpec = tween(220))
                         }
+                    } else if (isDesktop) {
+                        // The player keeps its instant cut; the page transition is for browsing.
+                        NavDisplay.transitionSpec { EnterTransition.None togetherWith ExitTransition.None } +
+                            NavDisplay.popTransitionSpec { EnterTransition.None togetherWith ExitTransition.None }
                     } else {
                         emptyMap()
                     },
