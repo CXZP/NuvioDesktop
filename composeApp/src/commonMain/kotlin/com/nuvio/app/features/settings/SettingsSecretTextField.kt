@@ -1,5 +1,9 @@
 package com.nuvio.app.features.settings
 
+import com.nuvio.app.core.ui.nuvioFieldPlaceholder
+import com.nuvio.app.core.ui.nuvioFieldLabel
+import com.nuvio.app.core.ui.nuvioFieldColors
+import com.nuvio.app.core.ui.nuvioFieldShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Visibility
@@ -40,7 +44,9 @@ internal fun SettingsSecretTextField(
         modifier = modifier,
         isError = isError,
         singleLine = true,
-        label = { Text(label) },
+        shape = nuvioFieldShape(),
+        label = nuvioFieldLabel(label),
+        placeholder = nuvioFieldPlaceholder(label),
         visualTransformation = if (visible) {
             VisualTransformation.None
         } else {
@@ -58,12 +64,14 @@ internal fun SettingsSecretTextField(
                 )
             }
         },
-        colors = OutlinedTextFieldDefaults.colors(
-            focusedBorderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.75f),
-            unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.42f),
-            focusedContainerColor = MaterialTheme.colorScheme.surface,
-            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-            disabledContainerColor = MaterialTheme.colorScheme.surface,
+        colors = nuvioFieldColors(
+            OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.75f),
+                unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.42f),
+                focusedContainerColor = MaterialTheme.colorScheme.surface,
+                unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                disabledContainerColor = MaterialTheme.colorScheme.surface,
+            ),
         ),
     )
 }

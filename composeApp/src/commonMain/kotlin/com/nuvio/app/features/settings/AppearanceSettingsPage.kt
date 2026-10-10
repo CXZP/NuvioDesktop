@@ -1,5 +1,10 @@
 package com.nuvio.app.features.settings
 
+import nuvio.composeapp.generated.resources.settings_appearance_glass_controls_description
+import nuvio.composeapp.generated.resources.settings_appearance_glass_controls
+import com.nuvio.app.core.ui.NuvioCardDepthSurface
+import com.nuvio.app.core.ui.CardDepthStyleRepository
+import com.nuvio.app.core.ui.rememberCardDepthStyleUiState
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -147,6 +152,17 @@ internal fun LazyListScope.appearanceSettingsContent(
                     isTablet = isTablet,
                     onCheckedChange = onAmoledToggle,
                 )
+                if (isDesktop) {
+                    val cardDepth = rememberCardDepthStyleUiState()
+                    SettingsGroupDivider(isTablet = isTablet)
+                    SettingsSwitchRow(
+                        title = stringResource(Res.string.settings_appearance_glass_controls),
+                        description = stringResource(Res.string.settings_appearance_glass_controls_description),
+                        checked = cardDepth.controlsEnabled,
+                        isTablet = isTablet,
+                        onCheckedChange = { CardDepthStyleRepository.setSurfaceEnabled(NuvioCardDepthSurface.Controls, it) },
+                    )
+                }
                 if (liquidGlassNativeTabBarSupported) {
                     SettingsGroupDivider(isTablet = isTablet)
                     SettingsSwitchRow(
@@ -166,7 +182,8 @@ internal fun LazyListScope.appearanceSettingsContent(
                     }
                     SettingsNavigationRow(
                         title = stringResource(Res.string.settings_appearance_desktop_navigation),
-                        description = desktopNavDescription,
+                        description = null,
+                        value = desktopNavDescription,
                         isTablet = isTablet,
                         onClick = {
                             if (isTablet) {
@@ -188,7 +205,8 @@ internal fun LazyListScope.appearanceSettingsContent(
                     val styleDescription = stringResource(selectedNavBarStyle.labelRes)
                     SettingsNavigationRow(
                         title = styleTitle,
-                        description = styleDescription,
+                        description = null,
+                        value = styleDescription,
                         isTablet = isTablet,
                         onClick = { showNavBarStyleSheet = true },
                     )
@@ -206,7 +224,8 @@ internal fun LazyListScope.appearanceSettingsContent(
                     SettingsGroupDivider(isTablet = isTablet)
                     SettingsNavigationRow(
                         title = stringResource(Res.string.settings_appearance_app_icon),
-                        description = stringResource(appIconState.selected.labelResource),
+                        description = null,
+                        value = stringResource(appIconState.selected.labelResource),
                         enabled = appIconState.pending == null,
                         isTablet = isTablet,
                         trailingContent = {
@@ -225,7 +244,8 @@ internal fun LazyListScope.appearanceSettingsContent(
                 SettingsGroupDivider(isTablet = isTablet)
                 SettingsNavigationRow(
                     title = stringResource(Res.string.settings_appearance_app_language),
-                    description = stringResource(selectedAppLanguage.labelRes),
+                    description = null,
+                    value = stringResource(selectedAppLanguage.labelRes),
                     isTablet = isTablet,
                     onClick = { showLanguageSheet = true },
                 )

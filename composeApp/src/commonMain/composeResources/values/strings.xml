@@ -769,6 +769,8 @@
     <string name="settings_hover_preview_section_behavior">BEHAVIOR</string>
     <string name="settings_hover_preview_enabled">Enable Hover Preview</string>
     <string name="settings_hover_preview_enabled_description">Show a larger preview after hovering over a poster.</string>
+    <string name="settings_hover_preview_on_long_press">Open on long press</string>
+    <string name="settings_hover_preview_on_long_press_description">Open the preview by holding a poster instead of hovering over it. Right-click still opens the poster menu.</string>
     <string name="settings_hover_preview_delay">Open Delay</string>
     <string name="settings_hover_preview_delay_description">How long a poster must be hovered before its preview opens.</string>
     <string name="settings_hover_preview_delay_value">%1$s s</string>
@@ -812,6 +814,8 @@
     <string name="settings_card_depth_surface_episodes">Episode cards</string>
     <string name="settings_card_depth_surface_cast">Cast</string>
     <string name="settings_card_depth_surface_trailers">Trailers</string>
+    <string name="settings_appearance_glass_controls">Glass buttons and menus</string>
+    <string name="settings_appearance_glass_controls_description">A lit edge and soft sheen on buttons, the menu bar, menus and panels. Strength follows Poster Card Style > Card depth.</string>
     <string name="settings_poster_card_radius">Corner Radius</string>
     <string name="settings_poster_card_style">POSTER CARD STYLE</string>
     <string name="settings_poster_card_width">Width</string>
@@ -1068,7 +1072,7 @@
     <string name="community_donation_progress_complete">Covered. Additional support now goes to development.</string>
     <string name="community_donation_progress_remaining">After 100%, additional support goes to development.</string>
     <string name="community_loading_donation_progress">Loading funding progress...</string>
-    <string name="community_supporters_not_configured">Supporters API is not configured. Add DONATIONS_BASE_URL to local.properties.</string>
+    <string name="community_supporters_not_configured">Supporters are not available in this build.</string>
     <string name="community_tab_contributors">Contributors</string>
     <string name="community_tab_supporters">Supporters</string>
     <string name="community_open_github">Open GitHub</string>
@@ -1336,7 +1340,7 @@
     <string name="settings_trakt_features">FEATURES</string>
     <string name="settings_trakt_finish_sign_in">Finish connection approval</string>
     <string name="settings_trakt_intro_description">Sync your watchlist, watch progress, continue watching, scrobbles, and personal lists with Trakt.</string>
-    <string name="settings_trakt_missing_credentials">Missing Trakt credentials in local.properties (TRAKT_CLIENT_ID / TRAKT_CLIENT_SECRET).</string>
+    <string name="settings_trakt_missing_credentials">Trakt is not available in this build.</string>
     <string name="settings_trakt_open_activation">Open Trakt Activate</string>
     <string name="settings_trakt_open_login">Open Trakt Login</string>
     <string name="settings_trakt_save_actions_description">Sync your watchlist, watch progress, continue watching, scrobbles, and personal lists with Trakt.</string>
@@ -1388,7 +1392,7 @@
     <string name="settings_simkl_open_pin">Open Simkl PIN</string>
     <string name="settings_simkl_open_login">Open Simkl Login</string>
     <string name="settings_simkl_sign_in_description">Connect Simkl to sync lists, watched history, playback progress, and scrobbles.</string>
-    <string name="settings_simkl_missing_credentials">Missing SIMKL_CLIENT_ID</string>
+    <string name="settings_simkl_missing_credentials">Simkl is not available in this build.</string>
     <string name="settings_simkl_visit">Visit Simkl</string>
     <string name="settings_simkl_invalid_callback">Simkl did not accept the sign-in callback. Please try again.</string>
     <string name="settings_simkl_authorization_expired">Simkl code expired. Start again.</string>
@@ -1846,7 +1850,7 @@
     <string name="trakt_public_list_enter_valid_id_or_url">Enter a valid Trakt list ID or URL</string>
     <string name="trakt_public_list_items_count">%1$d items</string>
     <string name="trakt_public_list_likes_count">%1$d likes</string>
-    <string name="trakt_public_list_missing_credentials">Missing Trakt credentials in local.properties (TRAKT_CLIENT_ID).</string>
+    <string name="trakt_public_list_missing_credentials">Trakt is not available in this build.</string>
     <string name="trakt_public_list_missing_id">Missing Trakt list ID</string>
     <string name="trakt_public_list_missing_numeric_id">Trakt list did not include a numeric ID</string>
     <string name="trakt_public_list_not_found_or_not_public">Trakt list not found or not public</string>
@@ -2487,4 +2491,5 @@
     <string name="movie_status_rumored">Rumored</string>
     <string name="movie_status_in_production">In Production</string>
     <string name="movie_status_post_production">Post Production</string>
+    <string name="release_year_present">%1$s – Present</string>
 </resources>

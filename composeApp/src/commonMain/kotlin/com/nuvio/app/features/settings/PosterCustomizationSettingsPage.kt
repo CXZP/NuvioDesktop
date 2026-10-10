@@ -1,5 +1,9 @@
 package com.nuvio.app.features.settings
 
+import com.nuvio.app.core.ui.nuvioFieldPlaceholder
+import com.nuvio.app.core.ui.nuvioFieldLabel
+import com.nuvio.app.core.ui.nuvioFieldColors
+import com.nuvio.app.core.ui.nuvioFieldShape
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
@@ -220,6 +224,8 @@ internal fun LazyListScope.posterCustomizationSettingsContent(
                         ),
                         singleLine = false,
                         maxLines = 4,
+                        shape = nuvioFieldShape(singleLine = false),
+                        colors = nuvioFieldColors(),
                     )
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -361,7 +367,9 @@ private fun CardDepthStyleControls(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(10.dp))
-                    .clickable { showFineTune = true },
+                    .clickable { showFineTune = true }
+                    // Same height as the rows around it; without padding it was a thin strip.
+                    .padding(vertical = 12.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {

@@ -36,6 +36,8 @@ import nuvio.composeapp.generated.resources.settings_hover_preview_delay_descrip
 import nuvio.composeapp.generated.resources.settings_hover_preview_delay_value
 import nuvio.composeapp.generated.resources.settings_hover_preview_enabled
 import nuvio.composeapp.generated.resources.settings_hover_preview_enabled_description
+import nuvio.composeapp.generated.resources.settings_hover_preview_on_long_press
+import nuvio.composeapp.generated.resources.settings_hover_preview_on_long_press_description
 import nuvio.composeapp.generated.resources.settings_hover_preview_section_behavior
 import nuvio.composeapp.generated.resources.settings_hover_preview_section_trailer
 import nuvio.composeapp.generated.resources.settings_hover_preview_trailer_enabled
@@ -66,9 +68,19 @@ internal fun LazyListScope.hoverPreviewSettingsContent(
                     onCheckedChange = PosterCardStyleRepository::setHoverPreviewEnabled,
                 )
                 SettingsGroupDivider(isTablet = isTablet)
+                SettingsSwitchRow(
+                    title = stringResource(Res.string.settings_hover_preview_on_long_press),
+                    description = stringResource(Res.string.settings_hover_preview_on_long_press_description),
+                    checked = uiState.hoverPreviewOnLongPress,
+                    enabled = uiState.hoverPreviewEnabled,
+                    isTablet = isTablet,
+                    onCheckedChange = PosterCardStyleRepository::setHoverPreviewOnLongPress,
+                )
+                SettingsGroupDivider(isTablet = isTablet)
                 HoverPreviewDelaySlider(
                     isTablet = isTablet,
-                    enabled = uiState.hoverPreviewEnabled,
+                    // Has no effect when the preview opens on a long press.
+                    enabled = uiState.hoverPreviewEnabled && !uiState.hoverPreviewOnLongPress,
                     delayMillis = uiState.hoverPreviewOpenDelayMillis,
                 )
             }

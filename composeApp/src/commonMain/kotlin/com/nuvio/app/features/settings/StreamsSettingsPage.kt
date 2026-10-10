@@ -1,5 +1,11 @@
 package com.nuvio.app.features.settings
 
+import com.nuvio.app.core.ui.DialogOption
+import com.nuvio.app.isDesktop
+import com.nuvio.app.core.ui.nuvioFieldPlaceholder
+import com.nuvio.app.core.ui.nuvioFieldLabel
+import com.nuvio.app.core.ui.nuvioFieldColors
+import com.nuvio.app.core.ui.nuvioFieldShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.layout.Column
@@ -124,7 +130,7 @@ internal fun LazyListScope.streamsSettingsContent(isTablet: Boolean) {
                 )
                 SettingsNavigationRow(
                     title = stringResource(Res.string.settings_stream_badge_position_title),
-                    description = badgePlacementLabel,
+                    value = badgePlacementLabel,
                     isTablet = isTablet,
                     onClick = { showBadgePositionDialog = true },
                 )
@@ -151,7 +157,7 @@ internal fun LazyListScope.streamsSettingsContent(isTablet: Boolean) {
                 if (!isTablet) {
                     SettingsNavigationRow(
                         title = stringResource(Res.string.settings_stream_background_title),
-                        description = streamBackgroundModeLabel(currentSettings.backgroundMode),
+                        value = streamBackgroundModeLabel(currentSettings.backgroundMode),
                         isTablet = false,
                         onClick = { showBackgroundDialog = true },
                     )
@@ -229,23 +235,13 @@ private fun StreamBackgroundModeDialog(
             style = MaterialTheme.typography.bodyMedium,
             color = tokens.colors.textSecondary,
         )
+        // The same option rows as every other picker (selected row filled, with a check).
         StreamBackgroundMode.entries.forEach { mode ->
-            Row(
-                modifier = Modifier.fillMaxWidth().selectable(
-                    selected = mode == selectedMode,
-                    role = Role.RadioButton,
-                    onClick = { onModeSelected(mode) },
-                ).padding(vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(tokens.spacing.controlGap),
-            ) {
-                RadioButton(selected = mode == selectedMode, onClick = null)
-                Text(
-                    text = streamBackgroundModeLabel(mode),
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = tokens.colors.textPrimary,
-                )
-            }
+            DialogOption(
+                text = streamBackgroundModeLabel(mode),
+                selected = mode == selectedMode,
+                onClick = { onModeSelected(mode) },
+            )
         }
         DialogButtons {
             DialogButton(
@@ -288,22 +284,13 @@ private fun StreamBadgePositionDialog(
             style = MaterialTheme.typography.bodyMedium,
             color = tokens.colors.textSecondary,
         )
+        // The same option rows as every other picker (selected row filled, with a check).
         StreamBadgePlacement.entries.forEach { placement ->
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(tokens.spacing.controlGap),
-            ) {
-                RadioButton(
-                    selected = placement == selectedPlacement,
-                    onClick = { onPlacementSelected(placement) },
-                )
-                Text(
-                    text = streamBadgePlacementLabel(placement),
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = tokens.colors.textPrimary,
-                )
-            }
+            DialogOption(
+                text = streamBadgePlacementLabel(placement),
+                selected = placement == selectedPlacement,
+                onClick = { onPlacementSelected(placement) },
+            )
         }
         DialogButtons {
             DialogButton(
@@ -344,17 +331,22 @@ private fun BadgeUrlManagerDialog(
                 errorMessage = null
             },
             modifier = Modifier.fillMaxWidth(),
-            label = { Text(stringResource(Res.string.settings_fusion_badge_url_label)) },
-            singleLine = false,
-            minLines = 2,
-            maxLines = 4,
+            label = nuvioFieldLabel(stringResource(Res.string.settings_fusion_badge_url_label)),
+            placeholder = nuvioFieldPlaceholder(stringResource(Res.string.settings_fusion_badge_url_label)),
+            // Desktop: one line, like the addon URL field (a URL has no line breaks).
+            singleLine = isDesktop,
+            minLines = if (isDesktop) 1 else 2,
+            maxLines = if (isDesktop) 1 else 4,
+            shape = nuvioFieldShape(singleLine = isDesktop),
             enabled = !isImporting,
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = tokens.colors.borderFocus.copy(alpha = tokens.opacity.strong),
-                unfocusedBorderColor = tokens.colors.borderDefault.copy(alpha = tokens.opacity.medium),
-                focusedContainerColor = tokens.colors.surface,
-                unfocusedContainerColor = tokens.colors.surface,
-                disabledContainerColor = tokens.colors.surface,
+            colors = nuvioFieldColors(
+                OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = tokens.colors.borderFocus.copy(alpha = tokens.opacity.strong),
+                    unfocusedBorderColor = tokens.colors.borderDefault.copy(alpha = tokens.opacity.medium),
+                    focusedContainerColor = tokens.colors.surface,
+                    unfocusedContainerColor = tokens.colors.surface,
+                    disabledContainerColor = tokens.colors.surface,
+                ),
             ),
         )
         Row(

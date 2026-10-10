@@ -1,5 +1,8 @@
 package com.nuvio.app.features.settings
 
+import com.nuvio.app.core.ui.NuvioCardDepthSurface
+import com.nuvio.app.core.ui.nuvioCardDepth
+import com.nuvio.app.isDesktop
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -529,10 +532,11 @@ private fun CommunityTabRow(
             Surface(
                 modifier = Modifier
                     .weight(1f)
+                    .then(if (isDesktop && isSelected) Modifier.nuvioCardDepth(RoundedCornerShape(999.dp), NuvioCardDepthSurface.Controls) else Modifier)
                     .clip(RoundedCornerShape(999.dp))
                     .clickable { onSelectTab(tab) },
                 color = if (isSelected) {
-                    MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)
+                    if (isDesktop) androidx.compose.ui.graphics.Color.White.copy(alpha = 0.16f) else MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)
                 } else {
                     MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
                 },
@@ -889,8 +893,13 @@ private fun ErrorState(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
         )
-        Button(onClick = onRetry) {
-            Text(stringResource(Res.string.action_retry))
+        // Desktop: the glass button used everywhere else, not a solid white one.
+        if (isDesktop) {
+            com.nuvio.app.core.ui.NuvioPrimaryButton(text = stringResource(Res.string.action_retry), onClick = onRetry)
+        } else {
+            Button(onClick = onRetry) {
+                Text(stringResource(Res.string.action_retry))
+            }
         }
     }
 }

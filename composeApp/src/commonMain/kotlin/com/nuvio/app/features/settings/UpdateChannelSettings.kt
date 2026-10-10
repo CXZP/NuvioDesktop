@@ -1,5 +1,6 @@
 package com.nuvio.app.features.settings
 
+import com.nuvio.app.core.ui.DialogOption
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -66,38 +67,22 @@ internal fun UpdateChannelSettingsRow(isTablet: Boolean) {
                 modifier = Modifier.selectableGroup().verticalScroll(rememberScrollState()),
             ) {
                 UpdateChannel.entries.filter { it != UpdateChannel.ALL_RELEASES }.forEach { option ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth().selectable(
-                            selected = option == channel,
-                            role = Role.RadioButton,
-                            onClick = {
-                                UpdatePreferences.shared.setChannel(option)
-                                showDialog = false
+                    // The same option rows as every other picker (selected row filled, with a check).
+                    DialogOption(
+                        text = updateChannelLabel(option),
+                        description = stringResource(
+                            when (option) {
+                                UpdateChannel.STABLE -> Res.string.updates_channel_stable_description
+                                UpdateChannel.BETA -> Res.string.updates_channel_beta_description
+                                UpdateChannel.ALL_RELEASES -> Res.string.updates_channel_all_releases_description
                             },
-                        ).padding(vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(tokens.spacing.controlGap),
-                    ) {
-                        RadioButton(selected = option == channel, onClick = null)
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = updateChannelLabel(option),
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = tokens.colors.textPrimary,
-                            )
-                            Text(
-                                text = stringResource(
-                                    when (option) {
-                                        UpdateChannel.STABLE -> Res.string.updates_channel_stable_description
-                                        UpdateChannel.BETA -> Res.string.updates_channel_beta_description
-                                        UpdateChannel.ALL_RELEASES -> Res.string.updates_channel_all_releases_description
-                                    },
-                                ),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = tokens.colors.textSecondary,
-                            )
-                        }
-                    }
+                        ),
+                        selected = option == channel,
+                        onClick = {
+                            UpdatePreferences.shared.setChannel(option)
+                            showDialog = false
+                        },
+                    )
                 }
             }
             DialogButtons {

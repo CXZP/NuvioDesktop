@@ -1,5 +1,10 @@
 package com.nuvio.app.features.settings
 
+import com.nuvio.app.core.ui.nuvioFieldPlaceholder
+import com.nuvio.app.core.ui.nuvioFieldLabel
+import com.nuvio.app.core.ui.nuvioFieldColors
+import com.nuvio.app.core.ui.nuvioFieldShape
+import com.nuvio.app.core.ui.nuvioTooltip
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.core.tween
@@ -1189,7 +1194,7 @@ private fun SettingsSearchField(
         onValueChange = onQueryChange,
         modifier = Modifier.fillMaxWidth(),
         singleLine = true,
-        shape = tokens.shapes.compactCard,
+        shape = nuvioFieldShape(fallback = tokens.shapes.compactCard),
         leadingIcon = {
             Icon(
                 imageVector = Icons.Rounded.Search,
@@ -1199,7 +1204,7 @@ private fun SettingsSearchField(
         },
         trailingIcon = if (query.isNotBlank()) {
             {
-                IconButton(onClick = { onQueryChange("") }) {
+                IconButton(onClick = { onQueryChange("") }, modifier = Modifier.nuvioTooltip(stringResource(Res.string.compose_search_clear))) {
                     Icon(
                         imageVector = Icons.Rounded.Close,
                         contentDescription = stringResource(Res.string.compose_search_clear),
@@ -1218,13 +1223,13 @@ private fun SettingsSearchField(
             )
         },
         textStyle = MaterialTheme.typography.bodyLarge.copy(color = tokens.colors.textPrimary),
-        colors = OutlinedTextFieldDefaults.colors(
+        colors = nuvioFieldColors(OutlinedTextFieldDefaults.colors(
             focusedBorderColor = tokens.colors.borderFocus,
             unfocusedBorderColor = tokens.colors.borderDefault,
             focusedContainerColor = tokens.colors.surfaceCard,
             unfocusedContainerColor = tokens.colors.surfaceCard,
             cursorColor = tokens.colors.accent,
-        ),
+        )),
     )
 }
 

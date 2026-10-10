@@ -46,6 +46,15 @@ internal enum class SettingsCategory(
     Advanced(Res.string.compose_settings_page_advanced, Icons.Rounded.Tune),
 }
 
+/** Desktop sidebar: each category's icon on a coloured tile, like iPadOS Settings. */
+internal val SettingsCategory.desktopTileColor: androidx.compose.ui.graphics.Color
+    get() = when (this) {
+        SettingsCategory.Account -> androidx.compose.ui.graphics.Color(0xFF0A84FF)
+        SettingsCategory.General -> androidx.compose.ui.graphics.Color(0xFF8E8E93)
+        SettingsCategory.About -> androidx.compose.ui.graphics.Color(0xFF30B0C7)
+        SettingsCategory.Advanced -> androidx.compose.ui.graphics.Color(0xFFFF9F0A)
+    }
+
 internal enum class SettingsPage(
     val titleRes: StringResource,
     val category: SettingsCategory,

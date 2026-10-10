@@ -1,5 +1,8 @@
 package com.nuvio.app.features.settings
 
+import com.nuvio.app.core.ui.NuvioCardDepthSurface
+import com.nuvio.app.core.ui.nuvioCardDepth
+import com.nuvio.app.isDesktop
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -70,6 +73,7 @@ internal fun SupporterMembershipCard(
     Column(
         modifier = Modifier
             .fillMaxWidth()
+            .then(if (isDesktop) Modifier.nuvioCardDepth(RoundedCornerShape(16.dp), NuvioCardDepthSurface.Controls) else Modifier)
             .clip(RoundedCornerShape(16.dp))
             .background(CardColor),
     ) {
@@ -492,6 +496,11 @@ private fun MembershipButton(
     enabled: Boolean,
     onClick: () -> Unit,
 ) {
+    // Desktop: the glass button used everywhere else.
+    if (isDesktop) {
+        com.nuvio.app.core.ui.NuvioPrimaryButton(text = label, enabled = enabled, onClick = onClick)
+        return
+    }
     Button(
         onClick = onClick,
         enabled = enabled,

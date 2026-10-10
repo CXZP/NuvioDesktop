@@ -1,5 +1,7 @@
 package com.nuvio.app.features.settings
 
+import com.nuvio.app.core.ui.nuvioFieldColors
+import com.nuvio.app.core.ui.nuvioFieldShape
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
@@ -666,13 +668,14 @@ private fun DebridTemplateDialog(
                 .fillMaxWidth()
                 .heightIn(min = 140.dp, max = 280.dp),
             minLines = 5,
-            colors = OutlinedTextFieldDefaults.colors(
+            colors = nuvioFieldColors(OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.75f),
                 unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.42f),
                 focusedContainerColor = MaterialTheme.colorScheme.surface,
                 unfocusedContainerColor = MaterialTheme.colorScheme.surface,
                 disabledContainerColor = MaterialTheme.colorScheme.surface,
-            ),
+            )),
+            shape = nuvioFieldShape(singleLine = false),
         )
         DialogButtons {
             DialogButton(
@@ -1109,13 +1112,14 @@ private fun DebridTextListDialog(
                 .fillMaxWidth()
                 .heightIn(min = 120.dp),
             minLines = 4,
-            colors = OutlinedTextFieldDefaults.colors(
+            colors = nuvioFieldColors(OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.75f),
                 unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.42f),
                 focusedContainerColor = MaterialTheme.colorScheme.surface,
                 unfocusedContainerColor = MaterialTheme.colorScheme.surface,
                 disabledContainerColor = MaterialTheme.colorScheme.surface,
-            ),
+            )),
+            shape = nuvioFieldShape(singleLine = false),
         )
         DialogButtons {
             DialogButton(
@@ -1637,13 +1641,14 @@ private fun DebridApiKeyDialog(
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
             placeholder = { Text(placeholder) },
-            colors = OutlinedTextFieldDefaults.colors(
+            colors = nuvioFieldColors(OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.75f),
                 unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.42f),
                 focusedContainerColor = MaterialTheme.colorScheme.surface,
                 unfocusedContainerColor = MaterialTheme.colorScheme.surface,
                 disabledContainerColor = MaterialTheme.colorScheme.surface,
-            ),
+            )),
+            shape = nuvioFieldShape(singleLine = true),
         )
         validationMessage?.let { message ->
             Text(

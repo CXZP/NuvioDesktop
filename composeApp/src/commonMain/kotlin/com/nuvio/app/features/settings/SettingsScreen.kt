@@ -1,5 +1,11 @@
 package com.nuvio.app.features.settings
 
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.draw.clipToBounds
+import com.nuvio.app.core.ui.nuvio
+import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.BorderStroke
 import com.nuvio.app.core.ui.smoothWheelScroll
 import com.nuvio.app.AppScreenTab
 import com.nuvio.app.core.build.AppFeaturePolicy
@@ -152,6 +158,7 @@ fun SettingsScreen(
     onCheckForUpdatesClick: (() -> Unit)? = null,
     onTestUpdateBannerClick: (() -> Unit)? = null,
     onCollectionsClick: () -> Unit = {},
+    onCollectionEditorClick: ((String?) -> Unit)? = null,
 ) {
     BoxWithConstraints(
         modifier = modifier.fillMaxSize(),
@@ -410,6 +417,7 @@ fun SettingsScreen(
                 onCheckForUpdatesClick = onCheckForUpdatesClick,
                 onTestUpdateBannerClick = onTestUpdateBannerClick,
                 onCollectionsClick = onCollectionsClick,
+                onCollectionEditorClick = onCollectionEditorClick,
             )
         } else {
             MobileSettingsScreen(
@@ -942,7 +950,16 @@ private fun TabletSettingsScreen(
     onCheckForUpdatesClick: (() -> Unit)? = null,
     onTestUpdateBannerClick: (() -> Unit)? = null,
     onCollectionsClick: () -> Unit = {},
+    onCollectionEditorClick: ((String?) -> Unit)? = null,
 ) {
+    // Desktop: Collections opens inside Settings (sidebar kept) instead of as a separate full-window page.
+    var inlineCollections by rememberSaveable { mutableStateOf(false) }
+    val openCollections: () -> Unit = if (isDesktop && onCollectionEditorClick != null) {
+        { inlineCollections = true }
+    } else {
+        onCollectionsClick
+    }
+    LaunchedEffect(page) { inlineCollections = false }
     var selectedCategory by rememberSaveable { mutableStateOf(SettingsCategory.General.name) }
     val activeCategory = SettingsCategory.valueOf(selectedCategory)
     val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
@@ -966,15 +983,29 @@ private fun TabletSettingsScreen(
 
     Row(modifier = Modifier.fillMaxSize()) {
         Surface(
-            modifier = Modifier
-                .width(240.dp)
-                .fillMaxSize(),
+            modifier = if (isDesktop) {
+                // A floating panel, like iPadOS Settings' sidebar, instead of a slab against the edge.
+                Modifier
+                    .padding(start = 16.dp, top = 16.dp, bottom = 16.dp)
+                    .width(272.dp)
+                    .fillMaxHeight()
+            } else {
+                Modifier
+                    .width(240.dp)
+                    .fillMaxSize()
+            },
             color = MaterialTheme.colorScheme.surface,
+            shape = if (isDesktop) RoundedCornerShape(26.dp) else RectangleShape,
+            border = if (isDesktop) {
+                BorderStroke(MaterialTheme.nuvio.borders.hairline, MaterialTheme.nuvio.colors.borderSubtle)
+            } else {
+                null
+            },
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(top = effectiveTopOffset),
+                    .padding(top = if (isDesktop) 28.dp else effectiveTopOffset),
             ) {
                 Text(
                     text = stringResource(Res.string.compose_settings_page_root),
@@ -992,8 +1023,10 @@ private fun TabletSettingsScreen(
                     SettingsSidebarItem(
                         label = stringResource(category.labelRes),
                         icon = category.icon,
+                        tileColor = if (isDesktop) category.desktopTileColor else null,
                         selected = category == activeCategory,
                         onClick = {
+                            inlineCollections = false
                             if (category != activeCategory || page != SettingsPage.Root) {
                                 selectedCategory = category.name
                                 navBarScrollState?.expand()
@@ -1007,7 +1040,24 @@ private fun TabletSettingsScreen(
             }
         }
 
-        Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
+        if (inlineCollections && onCollectionEditorClick != null) {
+            Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .widthIn(max = 1000.dp)
+                        .fillMaxSize()
+                        .padding(top = effectiveTopOffset)
+                        .clipToBounds(),
+                ) {
+                    com.nuvio.app.features.collection.CollectionManagementScreen(
+                        onBack = { inlineCollections = false },
+                        onNavigateToEditor = onCollectionEditorClick,
+                        embedded = true,
+                    )
+                }
+            }
+        } else Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
             saveableStateHolder.SaveableStateProvider(page.name) {
                 var settingsSearchQuery by rememberSaveable { mutableStateOf("") }
                 var rootSearchVisible by rememberSaveable { mutableStateOf(false) }
@@ -1035,7 +1085,7 @@ private fun TabletSettingsScreen(
                                 openInlinePage(target.page)
                             }
                         }
-                        SettingsSearchTarget.Collections -> onCollectionsClick()
+                        SettingsSearchTarget.Collections -> openCollections()
                         SettingsSearchTarget.SwitchProfile -> onSwitchProfile?.invoke()
                         SettingsSearchTarget.CheckForUpdates -> onCheckForUpdatesClick?.invoke()
                     }
@@ -1083,10 +1133,20 @@ private fun TabletSettingsScreen(
                 Box(
                     modifier = Modifier
                         .align(Alignment.CenterHorizontally)
-                        .widthIn(max = if (isDesktop) 800.dp else Dp.Unspecified)
+                        .widthIn(max = if (isDesktop) 1000.dp else Dp.Unspecified)
                         .fillMaxWidth()
                         .weight(1f),
                 ) {
+                    val pageTitle = if (page == SettingsPage.Root) {
+                        if (settingsSearchQuery.isBlank()) {
+                            stringResource(activeCategory.labelRes)
+                        } else {
+                            stringResource(Res.string.compose_settings_page_root)
+                        }
+                    } else {
+                        stringResource(page.titleRes)
+                    }
+                    CompositionLocalProvider(LocalSettingsPageTitle provides pageTitle) {
                     LazyColumn(
                         state = listState,
                         modifier = Modifier.smoothWheelScroll(listState)
@@ -1104,15 +1164,7 @@ private fun TabletSettingsScreen(
                             item {
                                 val previousPage = page.previousPage()
                                 TabletPageHeader(
-                                    title = if (page == SettingsPage.Root) {
-                                        if (settingsSearchQuery.isBlank()) {
-                                            stringResource(activeCategory.labelRes)
-                                        } else {
-                                            stringResource(Res.string.compose_settings_page_root)
-                                        }
-                                    } else {
-                                        stringResource(page.titleRes)
-                                    },
+                                    title = pageTitle,
                                     showBack = previousPage != null,
                                     onBack = { if (previousPage != null) onNavigateBack() },
                                 )
@@ -1210,7 +1262,7 @@ private fun TabletSettingsScreen(
                                 onHomescreenClick = { openInlinePage(SettingsPage.Homescreen) },
                                 onMetaScreenClick = { openInlinePage(SettingsPage.MetaScreen) },
                                 onStreamsClick = { openInlinePage(SettingsPage.Streams) },
-                                onCollectionsClick = onCollectionsClick,
+                                onCollectionsClick = openCollections,
                                 onContinueWatchingClick = { openInlinePage(SettingsPage.ContinueWatching) },
                                 onPosterCustomizationClick = { openInlinePage(SettingsPage.PosterCustomization) },
                                 onHoverPreviewClick = { openInlinePage(SettingsPage.HoverPreview) },
@@ -1292,6 +1344,7 @@ private fun TabletSettingsScreen(
                                 onCommentsEnabledChange = TraktCommentsSettings::setEnabled,
                             )
                         }
+                    }
                     }
                     NuvioDesktopVerticalScrollbar(
                         state = listState,

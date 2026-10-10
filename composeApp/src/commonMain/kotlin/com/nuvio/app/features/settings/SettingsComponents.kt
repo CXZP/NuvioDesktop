@@ -1,5 +1,16 @@
 package com.nuvio.app.features.settings
 
+import com.nuvio.app.core.ui.nuvioFieldPlaceholder
+import com.nuvio.app.core.ui.nuvioFieldLabel
+import com.nuvio.app.core.ui.nuvioFieldColors
+import com.nuvio.app.core.ui.nuvioFieldShape
+import com.nuvio.app.core.ui.rememberCardDepthStyleUiState
+import com.nuvio.app.core.ui.NuvioCardDepthSurface
+import com.nuvio.app.core.ui.nuvioCardDepth
+import com.nuvio.app.isDesktop
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.draw.clip
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -24,6 +35,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Lock
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.Menu
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -76,14 +88,19 @@ private fun SettingsCard(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val tokens = MaterialTheme.nuvio
+    val shape = if (isTablet) RoundedCornerShape(NuvioTokens.Radius.xl) else tokens.shapes.compactCard
     Surface(
-        modifier = modifier.fillMaxWidth(),
-        color = tokens.colors.surface,
-        shape = if (isTablet) RoundedCornerShape(NuvioTokens.Radius.xl) else tokens.shapes.compactCard,
-        border = BorderStroke(
-            tokens.borders.hairline,
-            tokens.colors.borderSubtle,
+        // Desktop: the glass edge of the other panels instead of a flat hairline.
+        modifier = modifier.fillMaxWidth().then(
+            if (isDesktop) Modifier.nuvioCardDepth(shape, NuvioCardDepthSurface.Controls) else Modifier,
         ),
+        color = tokens.colors.surface,
+        shape = shape,
+        border = if (isDesktop && rememberCardDepthStyleUiState().controlsEnabled) {
+            null
+        } else {
+            BorderStroke(tokens.borders.hairline, tokens.colors.borderSubtle)
+        },
     ) {
         Column(content = content)
     }
@@ -161,8 +178,13 @@ internal fun SettingsSidebarItem(
     icon: ImageVector,
     selected: Boolean,
     onClick: () -> Unit,
+    tileColor: Color? = null,
 ) {
     val tokens = MaterialTheme.nuvio
+    if (tileColor != null) {
+        DesktopSettingsSidebarItem(label, icon, selected, tileColor, onClick)
+        return
+    }
     val primary = tokens.colors.accent
     val background = if (selected) primary.copy(alpha = tokens.opacity.hover) else Color.Transparent
     val iconChip = if (selected) primary.copy(alpha = tokens.opacity.selected) else Color.Transparent
@@ -204,6 +226,51 @@ internal fun SettingsSidebarItem(
     }
 }
 
+// iPadOS-style row: a white glyph on a coloured tile, a full-strength label, and a soft pill
+// with an accent label for the selected category.
+@Composable
+private fun DesktopSettingsSidebarItem(
+    label: String,
+    icon: ImageVector,
+    selected: Boolean,
+    tileColor: Color,
+    onClick: () -> Unit,
+) {
+    val tokens = MaterialTheme.nuvio
+    val shape = RoundedCornerShape(50)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 2.dp)
+            .clip(shape)
+            .background(if (selected) Color.White.copy(alpha = 0.09f) else Color.Transparent)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(30.dp)
+                .background(tileColor, RoundedCornerShape(8.dp)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(20.dp),
+            )
+        }
+        Spacer(modifier = Modifier.width(14.dp))
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyLarge.copy(fontSize = 17.sp),
+            color = if (selected) tokens.colors.accent else tokens.colors.textPrimary,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+        )
+    }
+}
+
 @Composable
 internal fun SettingsSection(
     title: String,
@@ -212,8 +279,10 @@ internal fun SettingsSection(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val tokens = MaterialTheme.nuvio
+    // A section named like the page it is on ("Account" > ACCOUNT) only repeats the page title.
+    val repeatsPageTitle = title.equals(LocalSettingsPageTitle.current, ignoreCase = true)
     Column {
-        Row(
+        if (!repeatsPageTitle) Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
@@ -225,22 +294,31 @@ internal fun SettingsSection(
                 content = actions,
             )
         }
-        Spacer(modifier = Modifier.height(if (isTablet) tokens.spacing.listGap else NuvioTokens.Space.s10))
+        if (!repeatsPageTitle) {
+            Spacer(modifier = Modifier.height(if (isTablet) tokens.spacing.listGap else NuvioTokens.Space.s10))
+        }
         content()
     }
 }
 
+/** The title of the settings page being shown, so sections can skip a label that only repeats it. */
+internal val LocalSettingsPageTitle = androidx.compose.runtime.staticCompositionLocalOf<String?> { null }
+
 @Composable
 internal fun SettingsNavigationRow(
     title: String,
-    description: String?,
+    description: String? = null,
     icon: ImageVector? = null,
     iconPainter: Painter? = null,
     enabled: Boolean = true,
     isTablet: Boolean,
+    // The current choice. Wide layouts show it at the right, like iPadOS; phones keep it under the title.
+    value: String? = null,
     trailingContent: (@Composable RowScope.() -> Unit)? = null,
     onClick: () -> Unit,
 ) {
+    val valueAtRight = isTablet && !value.isNullOrBlank()
+    val shownDescription = if (valueAtRight || value.isNullOrBlank()) description else value
     val tokens = MaterialTheme.nuvio
     val iconSize = if (isTablet) 42.dp else 36.dp
     val verticalPadding = if (isTablet) 16.dp else 14.dp
@@ -259,7 +337,7 @@ internal fun SettingsNavigationRow(
             modifier = Modifier
                 .weight(1f)
                 .padding(end = 12.dp)
-                .widthIn(max = if (isTablet) 560.dp else Dp.Unspecified),
+                .widthIn(max = settingsTextMaxWidth(isTablet)),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             if (icon != null || iconPainter != null) {
@@ -294,22 +372,41 @@ internal fun SettingsNavigationRow(
             Column {
                 Text(
                     text = title,
-                    style = MaterialTheme.typography.bodyLarge,
+                    style = settingsTitleStyle(),
                     color = tokens.colors.textPrimary,
                     fontWeight = FontWeight.Medium,
                 )
-                if (!description.isNullOrBlank()) {
+                if (!shownDescription.isNullOrBlank()) {
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = description,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = tokens.colors.textMuted,
+                        text = shownDescription,
+                        style = settingsDescriptionStyle(),
+                        color = settingsDescriptionColor(),
                         modifier = Modifier.alpha(0.92f),
                     )
                 }
             }
         }
+        if (valueAtRight) {
+            Text(
+                text = value.orEmpty(),
+                style = settingsDescriptionStyle(),
+                color = settingsDescriptionColor(),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.widthIn(max = 280.dp).padding(end = 6.dp),
+            )
+        }
         trailingContent?.invoke(this)
+        // Rows that open something show a chevron, so they read as tappable.
+        if (isTablet && trailingContent == null) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                contentDescription = null,
+                tint = tokens.colors.textMuted,
+                modifier = Modifier.size(22.dp),
+            )
+        }
     }
 }
 
@@ -338,21 +435,21 @@ internal fun SettingsSwitchRow(
             modifier = Modifier
                 .weight(1f)
                 .padding(end = 12.dp)
-                .widthIn(max = if (isTablet) 560.dp else Dp.Unspecified)
+                .widthIn(max = settingsTextMaxWidth(isTablet))
                 .alpha(if (enabled) NuvioTokens.Opacity.visible else tokens.opacity.medium),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             Text(
                 text = title,
-                style = MaterialTheme.typography.bodyLarge,
+                style = settingsTitleStyle(),
                 color = tokens.colors.textPrimary,
                 fontWeight = FontWeight.Medium,
             )
             if (!description.isNullOrBlank()) {
                 Text(
                     text = description,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = tokens.colors.textMuted,
+                    style = settingsDescriptionStyle(),
+                    color = settingsDescriptionColor(),
                 )
             }
         }
@@ -556,14 +653,17 @@ internal fun HomescreenCatalogRow(
                     onValueChange = onTitleChange,
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
-                    label = { Text(stringResource(Res.string.settings_homescreen_display_name)) },
-                    placeholder = { Text(item.defaultTitle) },
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = tokens.colors.borderFocus.copy(alpha = tokens.opacity.strong),
-                        unfocusedBorderColor = tokens.colors.borderDefault.copy(alpha = tokens.opacity.medium),
-                        focusedContainerColor = tokens.colors.surface,
-                        unfocusedContainerColor = tokens.colors.surface,
-                        disabledContainerColor = tokens.colors.surface,
+                    shape = nuvioFieldShape(),
+                    label = nuvioFieldLabel(stringResource(Res.string.settings_homescreen_display_name)),
+                    placeholder = nuvioFieldPlaceholder(stringResource(Res.string.settings_homescreen_display_name), item.defaultTitle),
+                    colors = nuvioFieldColors(
+                        OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = tokens.colors.borderFocus.copy(alpha = tokens.opacity.strong),
+                            unfocusedBorderColor = tokens.colors.borderDefault.copy(alpha = tokens.opacity.medium),
+                            focusedContainerColor = tokens.colors.surface,
+                            unfocusedContainerColor = tokens.colors.surface,
+                            disabledContainerColor = tokens.colors.surface,
+                        ),
                     ),
                 )
             }
@@ -571,3 +671,22 @@ internal fun HomescreenCatalogRow(
     }
 }
 
+// Desktop: settings are read from further away than a tablet, so rows use larger, brighter text and
+// a wider text column (the page itself is wider there).
+private fun settingsTextMaxWidth(isTablet: Boolean): Dp = when {
+    isDesktop -> 720.dp
+    isTablet -> 560.dp
+    else -> Dp.Unspecified
+}
+
+@Composable
+private fun settingsTitleStyle(): TextStyle =
+    if (isDesktop) MaterialTheme.typography.bodyLarge.copy(fontSize = 17.sp) else MaterialTheme.typography.bodyLarge
+
+@Composable
+private fun settingsDescriptionStyle(): TextStyle =
+    if (isDesktop) MaterialTheme.typography.bodyMedium.copy(fontSize = 15.sp) else MaterialTheme.typography.bodyMedium
+
+@Composable
+private fun settingsDescriptionColor(): Color =
+    if (isDesktop) MaterialTheme.nuvio.colors.textSecondary else MaterialTheme.nuvio.colors.textMuted
